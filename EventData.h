@@ -1,3 +1,18 @@
+static constexpr int MAX_SAMPLES  = 200;   // samples per channel per event
+static constexpr int MAX_SLOTS    = 32;    // slot IDs 0..31 (VME 3-20, Fastbus 0-25)
+static constexpr int MAX_ROCS     = 10;    // number of ROC crates
+static constexpr int MAX_PEAKS    = 8;  
+
+static constexpr int APV_STRIP_SIZE     = 128;   // channels per APV25 chip
+static constexpr int SSP_TIME_SAMPLES   = 6;     // fixed by SSP firmware
+static constexpr int MAX_APVS_PER_MPD   = 16;    // APV slots per MPD
+static constexpr int MAX_MPDS           = 64;    // MPDs across all crates
+
+static constexpr int kMaxChannels  = MAX_ROCS * MAX_SLOTS * 16;
+static constexpr int kMaxGemStrips = MAX_MPDS * MAX_APVS_PER_MPD * APV_STRIP_SIZE;
+static constexpr int kMaxClusters  = 100;
+static constexpr int kMaxGemHits   = 400;
+
 // ── Raw replay ("events" tree) ───────────────────────────────────────────
 
 struct RawEventData {
@@ -10,7 +25,7 @@ struct RawEventData {
     int          nch = 0;
     uint16_t     module_id[kMaxChannels] = {};
     int nsamples[kMaxChannels] = {};
-    uint16_t     samples[kMaxChannels][fdec::MAX_SAMPLES] = {};
+    uint16_t     samples[kMaxChannels][MAX_SAMPLES] = {};
     float   ped_mean[kMaxChannels] = {};
     float   ped_rms[kMaxChannels]  = {};
     float   integral[kMaxChannels] = {};
@@ -20,7 +35,7 @@ struct RawEventData {
     int          veto_nch = 0;
     uint8_t veto_id[4]   = {}; // 1,2,3,4 for veto1-4
     int veto_nsamples[4] = {};
-    uint16_t     veto_samples[4][fdec::MAX_SAMPLES] = {};
+    uint16_t     veto_samples[4][MAX_SAMPLES] = {};
     float   veto_ped_mean[4] = {};
     float   veto_ped_rms[4]  = {};
     float   veto_integral[4] = {};
@@ -29,28 +44,28 @@ struct RawEventData {
     int lms_nch = 0;
     uint8_t lms_id[4] = {}; // 1,2,3 for lms1-3, 0 for Pin
     int lms_nsamples[4] = {};
-    uint16_t lms_samples[4][fdec::MAX_SAMPLES] = {};
+    uint16_t lms_samples[4][MAX_SAMPLES] = {};
     float   lms_ped_mean[4] = {};
     float   lms_ped_rms[4]  = {};
     float   lms_integral[4] = {};
 
     // Optional peak data
     int npeaks[kMaxChannels] = {};
-    float   peak_height[kMaxChannels][fdec::MAX_PEAKS]   = {};
-    float   peak_time[kMaxChannels][fdec::MAX_PEAKS]     = {};
-    float   peak_integral[kMaxChannels][fdec::MAX_PEAKS] = {};
+    float   peak_height[kMaxChannels][MAX_PEAKS]   = {};
+    float   peak_time[kMaxChannels][MAX_PEAKS]     = {};
+    float   peak_integral[kMaxChannels][MAX_PEAKS] = {};
 
     //optional veto peak data
     int veto_npeaks[4] = {};
-    float   veto_peak_height[4][fdec::MAX_PEAKS]   = {};
-    float   veto_peak_time[4][fdec::MAX_PEAKS]     = {};
-    float   veto_peak_integral[4][fdec::MAX_PEAKS] = {};
+    float   veto_peak_height[4][MAX_PEAKS]   = {};
+    float   veto_peak_time[4][MAX_PEAKS]     = {};
+    float   veto_peak_integral[4][MAX_PEAKS] = {};
 
     //optional LMS peak data
     int lms_npeaks[4] = {};
-    float   lms_peak_height[4][fdec::MAX_PEAKS]   = {};
-    float   lms_peak_time[4][fdec::MAX_PEAKS]     = {};
-    float   lms_peak_integral[4][fdec::MAX_PEAKS] = {};
+    float   lms_peak_height[4][MAX_PEAKS]   = {};
+    float   lms_peak_time[4][MAX_PEAKS]     = {};
+    float   lms_peak_integral[4][MAX_PEAKS] = {};
 
     // GEM per-strip data
     int        gem_nch = 0;
@@ -58,7 +73,7 @@ struct RawEventData {
     uint8_t mpd_fiber[kMaxGemStrips]  = {};
     uint8_t apv[kMaxGemStrips]        = {};
     uint8_t strip[kMaxGemStrips]      = {};
-    int16_t ssp_samples[kMaxGemStrips][ssp::SSP_TIME_SAMPLES] = {};
+    int16_t ssp_samples[kMaxGemStrips][SSP_TIME_SAMPLES] = {};
 
     // Raw 0xE10C SSP trigger bank words (one variable-length entry per event)
     std::vector<uint32_t> ssp_raw;
@@ -118,15 +133,15 @@ struct ReconEventData {
     int      veto_nch = 0;
     uint8_t veto_id[4]   = {}; // 0,1,2,3 for veto1-4
     int veto_npeaks[4] = {};
-    float veto_peak_time[4][fdec::MAX_PEAKS]     = {};
-    float veto_peak_integral[4][fdec::MAX_PEAKS] = {};
+    float veto_peak_time[4][MAX_PEAKS]     = {};
+    float veto_peak_integral[4][MAX_PEAKS] = {};
 
     //LMS reference PMT information
     int      lms_nch = 0;
     uint8_t lms_id[4]   = {}; // 0,1,2,3 for lms1-4
     int lms_npeaks[4] = {};
-    float lms_peak_time[4][fdec::MAX_PEAKS]     = {};
-    float lms_peak_integral[4][fdec::MAX_PEAKS] = {};
+    float lms_peak_time[4][MAX_PEAKS]     = {};
+    float lms_peak_integral[4][MAX_PEAKS] = {};
 
     // Raw 0xE10C SSP trigger bank words (one variable-length entry per event)
     std::vector<uint32_t> ssp_raw;
