@@ -117,10 +117,8 @@ void gem_eff(){
         c_gem_hit[i] = new TCanvas(Form("c_gem%d_hit", i), Form("GEM%d Hit Position", i), 800, 600);
         c_gem_hit[i]->Divide(2, 1);
         c_gem_hit[i]->cd(1);
-        gem_should_hit[i]->SetLogz();
         gem_should_hit[i]->Draw("COLZ");
         c_gem_hit[i]->cd(2);
-        gem_match_hit[i]->SetLogz();
         gem_match_hit[i]->Draw("COLZ");
     }
 
@@ -138,10 +136,8 @@ void gem_eff(){
         c_gem_2match_hit[i] = new TCanvas(Form("c_gem%d_2match_hit", i), Form("GEM%d 2-Match Hit Position", i), 800, 600);
         c_gem_2match_hit[i]->Divide(2, 1);
         c_gem_2match_hit[i]->cd(1);
-        gem_2match_should_hit[i]->SetLogz();
         gem_2match_should_hit[i]->Draw("COLZ");
         c_gem_2match_hit[i]->cd(2);
-        gem_2match_match_hit[i]->SetLogz();
         gem_2match_match_hit[i]->Draw("COLZ");
     }
 
