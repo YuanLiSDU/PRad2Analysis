@@ -18,6 +18,11 @@ void pos_calib()
     float gy[4] = {0,  1.5, 1.7, 1.66};
     float gz[4] = {0,  0,   0,   0};
 
+    TH2D *ep_pos = new TH2D("h2_ep_pos", "single cluster event distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
+    TH2D *all_hit = new TH2D("h2_all_hit", "All cluster distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
+    TH2D *hit_Ecut = new TH2D("h2_hit_Ecut", "Cluster distribution with E cut (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
+    TH2D *ee_pos = new TH2D("h2_ee_pos", "e-e event distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
+
     TH2F *h_moller_pos = new TH2F("h2_moller", "Moller event distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
     TH1F *h_moller_phi_diff = new TH1F("h1_moller_phi_diff", "Moller event phi difference distribution; #Delta#phi (degrees); Counts", 40, -15, 15);
     TH1F *h_moller_z = new TH1F("h1_moller_z", "Moller vertex distribution(HyCal); z (mm); Counts", 400, 5700, 6700);
@@ -41,8 +46,14 @@ void pos_calib()
         gem_hit_pos[i] = new TH2F(Form("h2_gem%d_hits", i), Form("GEM%d hit distribution (total E ~ 2100); x (mm); y (mm)", i), 100, -200, 200, 100, -200, 200);
     }
 
+    TH1F *h_phi_align[4];
+    for (int i = 0; i < 4; i++) {
+        h_phi_align[i] = new TH1F(Form("h1_phi_align_gem%d", i), Form("Anzimuth alignment for GEM%d; #Delta#phi (degrees); Counts", i), 150, -15, 15);
+    }
+
     MollerData H_mollers, G_mollers[4];
     MollerEvent h_m, g_m[4];
+    int index = 0;
 
     int nEntries = t->GetEntries();
     std::cout << "Total entries in recon tree: " << nEntries << std::endl;
@@ -58,6 +69,16 @@ void pos_calib()
                 int det_id = data.det_id[j];
                     gem_hit_pos[det_id]->Fill(data.gem_x[j], data.gem_y[j]);
             }
+        }
+
+        if(data.n_clusters == 1){
+            ep_pos->Fill(data.cl_x[0], data.cl_y[0]);
+        }
+
+        for(int j = 0; j < data.n_clusters; j++){
+            if(fabs(data.cl_energy[j] - 2108.f) < 200.)
+                hit_Ecut->Fill(data.cl_x[j], data.cl_y[j]);
+            all_hit->Fill(data.cl_x[j], data.cl_y[j]);
         }
 
         bool gem_match[2][4];
@@ -82,13 +103,14 @@ void pos_calib()
         H_mollers.push_back(h_m);
         for (int k = 0; k < 4; k++) {
             if(gem_match[0][k] && gem_match[1][k]) {
-                g_m[k].first = DataPoint(data.matchGEMx[0][k]+gx[k], data.matchGEMy[0][k]+gy[k], data.matchGEMz[0][k]+gz[k], data.cl_energy[0]);
-                g_m[k].second = DataPoint(data.matchGEMx[1][k]+gx[k], data.matchGEMy[1][k]+gy[k], data.matchGEMz[1][k]+gz[k], data.cl_energy[1]);
+                g_m[k].first = DataPoint(data.matchGEMx[0][k]+gx[k], data.matchGEMy[0][k]+gy[k], data.matchGEMz[0][k]+gz[k], index);
+                g_m[k].second = DataPoint(data.matchGEMx[1][k]+gx[k], data.matchGEMy[1][k]+gy[k], data.matchGEMz[1][k]+gz[k], index);
                 if( fabs(g_m[k].first.x) < 37. && fabs(g_m[k].first.y) < 37.) continue;
                 if( fabs(g_m[k].second.x) < 37. && fabs(g_m[k].second.y) < 37.) continue;
                 G_mollers[k].push_back(g_m[k]);
             }
         }
+        index++;
     }
 
     //moller analysis and filling histograms
@@ -119,6 +141,18 @@ void pos_calib()
             g_moller_center[k]->Fill(center[0], center[1]);
             g_moller_x[k]->Fill(center[0]);
             g_moller_y[k]->Fill(center[1]);
+            
+            auto h_event = H_mollers[G_mollers[k][i].first.E];
+            float hm_x[2], hm_y[2];
+            float phi_hycal = atan2(h_event.first.y, h_event.first.x) * 180.f / M_PI / 2. + 
+                            atan2(-h_event.second.y, -h_event.second.x) * 180.f / M_PI / 2.;
+            float phi_gem = atan2(event.first.y, event.first.x) * 180.f / M_PI / 2. + 
+                            atan2(-event.second.y, -event.second.x) * 180.f / M_PI / 2.;
+            float delta_phi = phi_gem - phi_hycal;
+            // Fold into [-90, 90] to avoid ~180-degree ambiguity from branch cuts
+            if (delta_phi > 90.f)       delta_phi -= 180.f;
+            else if (delta_phi < -90.f) delta_phi += 180.f;
+            h_phi_align[k]->Fill(delta_phi);
         }
     }
 
@@ -176,8 +210,26 @@ void pos_calib()
 
     for (int i = 0; i < 4; i++) {
         TCanvas *ch = new TCanvas(Form("c_gem%d_hit", i), Form("GEM%d Hit Position", i), 800, 600);
-        gem_hit_pos[i]->Draw("COLZ"); ch->SaveAs(Form("../data/gem%d_hit_pos.png", i));
+        gem_hit_pos[i]->Draw("COLZ"); 
+        ch->SetLogz();
+        ch->SaveAs(Form("../data/gem%d_hit_pos.png", i));
     }
+
+    for (int i = 0; i < 4; i++) {
+        TCanvas *cp = new TCanvas(Form("c_gem%d_phi_align", i), Form("GEM%d Phi Alignment", i), 800, 600);
+        h_phi_align[i]->Draw();
+        if(i!=0) fitAndDraw(h_phi_align[i], 1.f);
+        cp->SaveAs(Form("../data/gem%d_phi_align.png", i));
+    }
+
+    TCanvas *c_ep_pos = new TCanvas("c_ep_pos", "e'p Position", 800, 600);
+    ep_pos->Draw("COLZ");
+
+    TCanvas *c_all_hit = new TCanvas("c_all_hit", "All Hits", 800, 600);
+    all_hit->Draw("COLZ");
+
+    TCanvas *c_hit_Ecut = new TCanvas("c_hit_Ecut", "Hits with E cut", 800, 600);
+    hit_Ecut->Draw("COLZ");
 }
 
 void setupReconBranches(TTree *tree, ReconEventData &ev)
