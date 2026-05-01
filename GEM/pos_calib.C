@@ -14,7 +14,7 @@ void pos_calib()
     ReconEventData data;
     setupReconBranches(t, data);
 
-    float gx[4] = {0, -1.13, 3.2, 2.37};
+    float gx[4] = {1.5, -1.13, 3.2, 2.37};
     float gy[4] = {0,  1.5, 1.7, 1.66};
     float gz[4] = {0,  0,   0,   0};
 

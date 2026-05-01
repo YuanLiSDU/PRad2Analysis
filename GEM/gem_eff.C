@@ -34,6 +34,15 @@ void gem_eff(){
         gem_efficiency[i] = new TH2F(Form("h2_gem%d_efficiency", i), Form("GEM%d Efficiency; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
     }
 
+    TH2F *gem_2match_should_hit[4];
+    TH2F *gem_2match_match_hit[4];
+    TH2F *gem_2match_efficiency[4];
+    for (int i = 0; i < 4; i++) {
+        gem_2match_should_hit[i] = new TH2F(Form("h2_gem%d_2match_should_hit", i), Form("GEM%d 2 Should Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+        gem_2match_match_hit[i] = new TH2F(Form("h2_gem%d_2match_match_hit", i), Form("GEM%d 2 Matched Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+        gem_2match_efficiency[i] = new TH2F(Form("h2_gem%d_2match_efficiency", i), Form("GEM%d 2 Hit Efficiency; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+    }
+
     int nEntries = t->GetEntries();
     std::cout << "Total entries in recon tree: " << nEntries << std::endl;
     for (int i = 0; i < nEntries; i++) {
@@ -51,7 +60,38 @@ void gem_eff(){
                 bool gem_match = (data.matchFlag[j] & (1 << k)) != 0; // check if cluster j matches with GEM k
                 if(gem_match) 
                     gem_match_hit[k]->Fill(data.matchGEMx[j][k], data.matchGEMy[j][k]);
-        
+            }
+            // gem 0, require hycal and gem 2 to match
+            if( data.matchFlag[j] & ( 1 << 2) ){
+                TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 0);
+                gem_2match_should_hit[0]->Fill(data.cl_x[j], data.cl_y[j]);
+                if( data.matchFlag[j] & ( 1 << 0) ){
+                    gem_2match_match_hit[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
+                }
+            }
+            // gem 2, require hycal and gem 0 to match
+            if( data.matchFlag[j] & ( 1 << 0) ){
+                TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 2);
+                gem_2match_should_hit[2]->Fill(data.cl_x[j], data.cl_y[j]);
+                if( data.matchFlag[j] & ( 1 << 2) ){
+                    gem_2match_match_hit[2]->Fill(data.matchGEMx[j][2], data.matchGEMy[j][2]);
+                }
+            }
+            // gem 1, require hycal and gem 3 to match
+            if( data.matchFlag[j] & ( 1 << 3) ){
+                TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 1);
+                gem_2match_should_hit[1]->Fill(data.cl_x[j], data.cl_y[j]);
+                if( data.matchFlag[j] & ( 1 << 1) ){
+                    gem_2match_match_hit[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                }
+            }
+            // gem 3, require hycal and gem 1 to match
+            if( data.matchFlag[j] & ( 1 << 1) ){
+                TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 3);
+                gem_2match_should_hit[3]->Fill(data.cl_x[j], data.cl_y[j]);
+                if( data.matchFlag[j] & ( 1 << 3) ){
+                    gem_2match_match_hit[3]->Fill(data.matchGEMx[j][3], data.matchGEMy[j][3]);
+                }
             }
         }
     }
@@ -64,14 +104,23 @@ void gem_eff(){
         std::cout << Form("GEM%d Overall Efficiency: %.2f%% (%d/%d)", i, overall_eff[i]*100, match_hit, should_hit) << std::endl;
     }
 
+    float overall_2match_eff[4];
+    for (int i = 0; i < 4; i++) {
+        int should_hit = gem_2match_should_hit[i]->Integral();
+        int match_hit = gem_2match_match_hit[i]->Integral();
+        overall_2match_eff[i] = (should_hit > 0) ? static_cast<float>(match_hit) / should_hit : 0.0;
+        std::cout << Form("GEM%d 2-Match Overall Efficiency: %.2f%% (%d/%d)", i, overall_2match_eff[i]*100, match_hit, should_hit) << std::endl;
+    }
+
     TCanvas *c_gem_hit[4];
     for (int i = 0; i < 4; i++) {
         c_gem_hit[i] = new TCanvas(Form("c_gem%d_hit", i), Form("GEM%d Hit Position", i), 800, 600);
-        c_gem_hit[i]->SetLogz();
         c_gem_hit[i]->Divide(2, 1);
         c_gem_hit[i]->cd(1);
+        gem_should_hit[i]->SetLogz();
         gem_should_hit[i]->Draw("COLZ");
         c_gem_hit[i]->cd(2);
+        gem_match_hit[i]->SetLogz();
         gem_match_hit[i]->Draw("COLZ");
     }
 
@@ -82,6 +131,27 @@ void gem_eff(){
         c_eff->cd(i+1);
         gem_efficiency[i]->SetStats(0);
         gem_efficiency[i]->Draw("COLZ");
+    }
+
+    TCanvas *c_gem_2match_hit[4];
+    for (int i = 0; i < 4; i++) {
+        c_gem_2match_hit[i] = new TCanvas(Form("c_gem%d_2match_hit", i), Form("GEM%d 2-Match Hit Position", i), 800, 600);
+        c_gem_2match_hit[i]->Divide(2, 1);
+        c_gem_2match_hit[i]->cd(1);
+        gem_2match_should_hit[i]->SetLogz();
+        gem_2match_should_hit[i]->Draw("COLZ");
+        c_gem_2match_hit[i]->cd(2);
+        gem_2match_match_hit[i]->SetLogz();
+        gem_2match_match_hit[i]->Draw("COLZ");
+    }
+
+    TCanvas *c_2match_eff = new TCanvas("c_2match_eff", "GEM 2-Match Efficiency", 1200, 800);
+    c_2match_eff->Divide(2, 2);
+    for (int i = 0; i < 4; i++) {
+        gem_2match_efficiency[i]->Divide(gem_2match_match_hit[i], gem_2match_should_hit[i], 1, 1, "B");
+        c_2match_eff->cd(i+1);
+        gem_2match_efficiency[i]->SetStats(0);
+        gem_2match_efficiency[i]->Draw("COLZ");
     }
 }
 
