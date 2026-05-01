@@ -11,7 +11,7 @@ void TransformToGEMFrame(float &x, float &y, float &z, int gem_id);
 
 void gem_eff(){
     TChain *chain = new TChain("recon");
-    chain->Add("../data/prad_024004_recon.root");
+    chain->Add("../data/24017.root");
     TTree *t = chain;
 
     ReconEventData data;
@@ -62,7 +62,7 @@ void gem_eff(){
                     gem_match_hit[k]->Fill(data.matchGEMx[j][k], data.matchGEMy[j][k]);
             }
             // gem 0, require hycal and gem 2 to match
-            if( data.matchFlag[j] & ( 1 << 2) ){
+            if( data.matchFlag[j] & ( 1 << 2) || data.matchFlag[j] & ( 1 << 3) ){ // require at least one of the other two GEMs to match
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 0);
                 gem_2match_should_hit[0]->Fill(data.cl_x[j], data.cl_y[j]);
                 if( data.matchFlag[j] & ( 1 << 0) ){
@@ -70,7 +70,7 @@ void gem_eff(){
                 }
             }
             // gem 2, require hycal and gem 0 to match
-            if( data.matchFlag[j] & ( 1 << 0) ){
+            if( data.matchFlag[j] & ( 1 << 0) || data.matchFlag[j] & ( 1 << 1) ){ // require at least one of the other two GEMs to match
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 2);
                 gem_2match_should_hit[2]->Fill(data.cl_x[j], data.cl_y[j]);
                 if( data.matchFlag[j] & ( 1 << 2) ){
@@ -78,7 +78,7 @@ void gem_eff(){
                 }
             }
             // gem 1, require hycal and gem 3 to match
-            if( data.matchFlag[j] & ( 1 << 3) ){
+            if( data.matchFlag[j] & ( 1 << 3) || data.matchFlag[j] & ( 1 << 2) ){ // require at least one of the other two GEMs to match
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 1);
                 gem_2match_should_hit[1]->Fill(data.cl_x[j], data.cl_y[j]);
                 if( data.matchFlag[j] & ( 1 << 1) ){
@@ -86,7 +86,7 @@ void gem_eff(){
                 }
             }
             // gem 3, require hycal and gem 1 to match
-            if( data.matchFlag[j] & ( 1 << 1) ){
+            if( data.matchFlag[j] & ( 1 << 1) || data.matchFlag[j] & ( 1 << 0) ){ // require at least one of the other two GEMs to match
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], 3);
                 gem_2match_should_hit[3]->Fill(data.cl_x[j], data.cl_y[j]);
                 if( data.matchFlag[j] & ( 1 << 3) ){
