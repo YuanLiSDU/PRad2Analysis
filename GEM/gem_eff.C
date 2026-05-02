@@ -38,9 +38,9 @@ void gem_eff(){
     TH2F *gem_2match_match_hit[4];
     TH2F *gem_2match_efficiency[4];
     for (int i = 0; i < 4; i++) {
-        gem_2match_should_hit[i] = new TH2F(Form("h2_gem%d_2match_should_hit", i), Form("GEM%d 2 Should Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
-        gem_2match_match_hit[i] = new TH2F(Form("h2_gem%d_2match_match_hit", i), Form("GEM%d 2 Matched Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
-        gem_2match_efficiency[i] = new TH2F(Form("h2_gem%d_2match_efficiency", i), Form("GEM%d 2 Hit Efficiency; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+        gem_2match_should_hit[i] = new TH2F(Form("h2_2match_should_%d", i), Form("GEM%d 2match Should Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+        gem_2match_match_hit[i] = new TH2F(Form("h2_2match_match_%d", i), Form("GEM%d 2match Matched Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
+        gem_2match_efficiency[i] = new TH2F(Form("h2_2match_efficiency_%d", i), Form("GEM%d 2match Hit Efficiency; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
     }
 
     int nEntries = t->GetEntries();

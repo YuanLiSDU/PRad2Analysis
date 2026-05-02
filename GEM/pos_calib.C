@@ -161,7 +161,7 @@ void pos_calib()
     for (int k = 0; k < 4; k++) {
         cout << "Moller events with GEM" << k+1 << " match: " << G_mollers[k].size() << std::endl;
     }
-    /*
+    
     TCanvas *c_moller_pos = new TCanvas("c_moller_pos", "Moller Position", 800, 600);
     h_moller_pos->Draw("COLZ"); c_moller_pos->SaveAs("../data/moller_pos.png");
 
@@ -220,7 +220,7 @@ void pos_calib()
         h_phi_align[i]->Draw();
         if(i!=0) fitAndDraw(h_phi_align[i], 1.f);
         cp->SaveAs(Form("../data/gem%d_phi_align.png", i));
-    }*/
+    }
 
     TCanvas *c_ep_pos = new TCanvas("c_ep_pos", "e'p Position", 800, 600);
     ep_pos->Draw("COLZ");
