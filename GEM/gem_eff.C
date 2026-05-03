@@ -6,7 +6,7 @@ float gx[4] = {0, 0, 0, 0};
 float gy[4] = {0, 0, 0, 0};
 float gz[4] = {5805.0,  5850.0, 5413.0, 5458.9};
 
-float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
+float Ebeam = 3900.f; // MeV, can adjust as needed for different beam energies
 
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void TransformToGEMFrame(float &x, float &y, float &z, int gem_id);
@@ -71,7 +71,7 @@ void gem_eff(){
         }
 
         for (int j = 0; j < data.n_clusters; j++) {
-            if( fabs(data.cl_energy[j] - Ebeam) > 200.) continue; 
+            if( fabs(data.cl_energy[j] - Ebeam) > 400.) continue; 
             if( fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue; // exclude central region
             for (int k = 0; k < 4; k++) {
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], k);

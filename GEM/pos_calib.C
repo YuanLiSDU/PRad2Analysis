@@ -5,7 +5,7 @@
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void fitAndDraw(TH1F* hist, const float fit_range);
 
-float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
+float Ebeam = 3900.f; // MeV, can adjust as needed for different beam energies
 
 void pos_calib()
 {   
@@ -83,7 +83,7 @@ void pos_calib()
             std::cout << "Processing entry " << i << "/" << nEntries << "\r" << std::flush;
         }
 
-        if (fabs(data.total_energy - Ebeam) < 200.) {
+        if (fabs(data.total_energy - Ebeam) < 400.) {
             for(int j = 0; j < data.n_gem_hits; j++) {
                 int det_id = data.det_id[j];
                     gem_hit_pos[det_id]->Fill(data.gem_x[j], data.gem_y[j]);
@@ -95,7 +95,7 @@ void pos_calib()
         }
 
         for(int j = 0; j < data.n_clusters; j++){
-            if(fabs(data.cl_energy[j] - Ebeam) < 200.)
+            if(fabs(data.cl_energy[j] - Ebeam) < 400.)
                 hit_Ecut->Fill(data.cl_x[j], data.cl_y[j]);
             all_hit->Fill(data.cl_x[j], data.cl_y[j]);
         }
@@ -109,7 +109,7 @@ void pos_calib()
         float Epair = h_m.first.E + h_m.second.E;
         float phi_diff = GetMollerPhiDiff(h_m);
 
-        if( fabs(Epair -Ebeam) > 200. || fabs(phi_diff) > 10.0) continue;
+        if( fabs(Epair -Ebeam) > 400. || fabs(phi_diff) > 10.0) continue;
         if( fabs(data.cl_x[0]) < 20.75*2.5 && fabs(data.cl_y[0]) < 20.75*2.5) continue; 
         if( fabs(data.cl_x[1]) < 20.75*2.5 && fabs(data.cl_y[1]) < 20.75*2.5) continue;
 
@@ -151,7 +151,7 @@ void pos_calib()
     for (int k = 0; k < 4; k++) {
         for (int i = 1; i < G_mollers[k].size(); i++) {
             auto event = G_mollers[k][i];
-            float z = GetMollerZdistance(event, Ebeam);
+            float z = GetMollerZdistance(event, 3488.43f);
             float phi_diff = GetMollerPhiDiff(event);
             g_moller_z[k]->Fill(z);
 
