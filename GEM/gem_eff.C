@@ -39,7 +39,9 @@ void processOneFile(const TString &fname,
                     TH2F *out_should[4]    = nullptr,
                     TH2F *out_match[4]     = nullptr,
                     TH1F *out_inter_dx[4]  = nullptr,
-                    TH1F *out_inter_dy[4]  = nullptr)
+                    TH1F *out_inter_dy[4]  = nullptr,
+                    TH2F *out_2sh[4]       = nullptr,
+                    TH2F *out_2mh[4]       = nullptr)
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -192,6 +194,8 @@ void processOneFile(const TString &fname,
             out_gem_2match_eff[i]->Divide(h_2mh[i], h_2sh[i], 1, 1, "B");
         if (out_should && out_should[i]) out_should[i]->Add(h_should[i]);
         if (out_match  && out_match[i])  out_match[i]->Add(h_match[i]);
+        if (out_2sh && out_2sh[i]) out_2sh[i]->Add(h_2sh[i]);
+        if (out_2mh && out_2mh[i]) out_2mh[i]->Add(h_2mh[i]);
     }
 
     for (int i = 0; i < 4; i++) {
@@ -218,17 +222,18 @@ void gem_eff(){
     }
 
     int nFiles = input_files.size();
-    bool single_file = (nFiles == 1);
 
     float gem_x_range_lo[4] = {-280., -10., -280., -10.};
     float gem_x_range_hi[4] = {10., 280., 10., 280.};
 
-    // Create 2D efficiency histograms for single-file mode, inter-layer residuals always created
+    // All histograms accumulated across all input files
     TH2F *gem_eff_2d[4]       = {};
     TH2F *gem_2match_eff_2d[4]= {};
     TH2F *gem_inter_dxy[4]    = {};
     TH2F *gem_should[4]       = {};
     TH2F *gem_match[4]        = {};
+    TH2F *gem_2sh[4]          = {};
+    TH2F *gem_2mh[4]          = {};
     TH1F *gem_inter_dx[4]     = {};
     TH1F *gem_inter_dy[4]     = {};
     for (int i = 0; i < 4; i++) {
@@ -241,18 +246,20 @@ void gem_eff(){
         gem_match[i]  = new TH2F(Form("h2_match_%d",  i),
                                  Form("GEM%d Match Hit; x (mm); y (mm)", i),
                                  40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+        gem_2sh[i]    = new TH2F(Form("h2_2sh_%d", i),
+                                 Form("GEM%d 2-Match Should Hit; x (mm); y (mm)", i),
+                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+        gem_2mh[i]    = new TH2F(Form("h2_2mh_%d", i),
+                                 Form("GEM%d 2-Match Hit; x (mm); y (mm)", i),
+                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+        gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+        gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
         gem_inter_dx[i] = new TH1F(Form("h1_inter_dx_%d", i),
                                    Form("GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", i),
                                    300, -30, 30);
         gem_inter_dy[i] = new TH1F(Form("h1_inter_dy_%d", i),
                                    Form("GEM%d Inter-layer #DeltaY; #DeltaY (mm); Counts", i),
                                    300, -30, 30);
-    }
-    if (single_file) {
-        for (int i = 0; i < 4; i++) {
-            gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
-            gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
-        }
     }
 
     // Collect per-file results
@@ -264,13 +271,14 @@ void gem_eff(){
     for (auto &fname : input_files) {
         double eff[4], eff_err[4], eff2[4], eff2_err[4];
         processOneFile(fname, eff, eff_err, eff2, eff2_err,
-                       single_file ? gem_eff_2d        : nullptr,
-                       single_file ? gem_2match_eff_2d : nullptr,
+                       nullptr, nullptr,
                        gem_inter_dxy,
                        gem_should,
                        gem_match,
                        gem_inter_dx,
-                       gem_inter_dy);
+                       gem_inter_dy,
+                       gem_2sh,
+                       gem_2mh);
         run_nums.push_back(extractRunNumber(fname));
         v_xerr.push_back(0.);
         for (int k = 0; k < 4; k++) {
@@ -296,8 +304,14 @@ void gem_eff(){
     int colors[4]  = {kRed, kBlue, kGreen+2, kMagenta};
     int markers[4] = {20, 21, 22, 23};
 
+    // Compute 2D efficiency maps from accumulated histograms
+    for (int i = 0; i < 4; i++) {
+        gem_eff_2d[i]->Divide(gem_match[i], gem_should[i], 1, 1, "B");
+        gem_2match_eff_2d[i]->Divide(gem_2mh[i], gem_2sh[i], 1, 1, "B");
+    }
+
     // Multi-file mode: draw efficiency vs run number trend graphs
-    if (!single_file) {
+    if (nFiles > 1) {
         // Overall efficiency trend
         TCanvas *c_trend = new TCanvas("c_trend", "GEM Overall Efficiency vs Run", 900, 600);
         c_trend->SetGrid();
@@ -337,32 +351,36 @@ void gem_eff(){
         c_trend2->Update();
     }
 
-    // Single-file mode: draw 2D efficiency maps and per-chamber summary with error bars
-    if (single_file) {
-        TCanvas *c_eff = new TCanvas("c_eff", "GEM Efficiency", 1200, 800);
-        c_eff->Divide(2, 2);
-        for (int i = 0; i < 4; i++) {
-            c_eff->cd(i+1);
-            gem_eff_2d[i]->SetStats(0);
-            gem_eff_2d[i]->Draw("COLZ");
-        }
+    // 2D efficiency maps (all files accumulated)
+    TCanvas *c_eff = new TCanvas("c_eff", "GEM Efficiency", 1200, 800);
+    c_eff->Divide(2, 2);
+    for (int i = 0; i < 4; i++) {
+        c_eff->cd(i+1);
+        gem_eff_2d[i]->SetStats(0);
+        gem_eff_2d[i]->Draw("COLZ");
+    }
 
-        TCanvas *c_2match_eff = new TCanvas("c_2match_eff", "GEM 2-Match Efficiency", 1200, 800);
-        c_2match_eff->Divide(2, 2);
-        for (int i = 0; i < 4; i++) {
-            c_2match_eff->cd(i+1);
-            gem_2match_eff_2d[i]->SetStats(0);
-            gem_2match_eff_2d[i]->Draw("COLZ");
-        }
+    TCanvas *c_2match_eff = new TCanvas("c_2match_eff", "GEM 2-Match Efficiency", 1200, 800);
+    c_2match_eff->Divide(2, 2);
+    for (int i = 0; i < 4; i++) {
+        c_2match_eff->cd(i+1);
+        gem_2match_eff_2d[i]->SetStats(0);
+        gem_2match_eff_2d[i]->Draw("COLZ");
+    }
 
-        // Per-chamber efficiency summary with binomial error bars
+    // Per-chamber efficiency summary with binomial error bars (from accumulated totals)
+    {
         TCanvas *c_eff_summary = new TCanvas("c_eff_summary", "GEM Per-Chamber Efficiency Summary", 700, 500);
         c_eff_summary->SetGrid();
         double xpts[4] = {0, 1, 2, 3}, xerr0[4] = {0, 0, 0, 0};
         double ypts[4], yerr[4], y2pts[4], y2err[4];
         for (int k = 0; k < 4; k++) {
-            ypts[k]  = v_eff[k][0];   yerr[k]  = v_eff_err[k][0];
-            y2pts[k] = v_eff2[k][0];  y2err[k] = v_eff2_err[k][0];
+            double ns  = gem_should[k]->Integral(), nm  = gem_match[k]->Integral();
+            double n2s = gem_2sh[k]->Integral(),    n2m = gem_2mh[k]->Integral();
+            ypts[k]  = (ns  > 0) ? nm  / ns  : 0.;
+            yerr[k]  = (ns  > 0) ? sqrt(ypts[k]  * (1 - ypts[k])  / ns)  : 0.;
+            y2pts[k] = (n2s > 0) ? n2m / n2s : 0.;
+            y2err[k] = (n2s > 0) ? sqrt(y2pts[k] * (1 - y2pts[k]) / n2s) : 0.;
         }
         TGraphErrors *gr_s  = new TGraphErrors(4, xpts, ypts,  xerr0, yerr);
         TGraphErrors *gr_s2 = new TGraphErrors(4, xpts, y2pts, xerr0, y2err);
@@ -376,7 +394,6 @@ void gem_eff(){
         gr_s->Draw("AP");
         gr_s->GetXaxis()->SetLimits(-0.5, 3.5);
         gr_s->GetYaxis()->SetRangeUser(0., 1.05);
-        // label x axis with GEM IDs
         for (int k = 0; k < 4; k++)
             gr_s->GetXaxis()->SetBinLabel(gr_s->GetXaxis()->FindBin(k), Form("GEM%d", k));
         gr_s2->Draw("P same");
