@@ -220,8 +220,8 @@ void gem_eff(){
     int nFiles = input_files.size();
     bool single_file = (nFiles == 1);
 
-    float gem_x_range_lo[4] = {-250., 0., -250., 0.};
-    float gem_x_range_hi[4] = {0., 250., 0., 250.};
+    float gem_x_range_lo[4] = {-280., -10., -280., -10.};
+    float gem_x_range_hi[4] = {10., 280., 10., 280.};
 
     // Create 2D efficiency histograms for single-file mode, inter-layer residuals always created
     TH2F *gem_eff_2d[4]       = {};
