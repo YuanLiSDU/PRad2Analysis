@@ -200,17 +200,19 @@ void gem_eff(){
     float gem_x_range_lo[4] = {-250., 0., -250., 0.};
     float gem_x_range_hi[4] = {0., 250., 0., 250.};
 
-    // Create 2D efficiency histograms and inter-layer residual histograms for single-file mode
+    // Create 2D efficiency histograms for single-file mode, inter-layer residuals always created
     TH2F *gem_eff_2d[4]       = {};
     TH2F *gem_2match_eff_2d[4]= {};
     TH2F *gem_inter_dxy[4]    = {};
+    for (int i = 0; i < 4; i++) {
+        gem_inter_dxy[i] = new TH2F(Form("h2_inter_dxy_%d",  i),
+                                    Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
+                                    100, -30, 30, 100, -30, 30);
+    }
     if (single_file) {
         for (int i = 0; i < 4; i++) {
             gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
             gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
-            gem_inter_dxy[i]     = new TH2F(Form("h2_inter_dxy_%d",  i),
-                                            Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
-                                            100, -30, 30, 100, -30, 30);
         }
     }
 
@@ -225,7 +227,7 @@ void gem_eff(){
         processOneFile(fname, eff, eff_err, eff2, eff2_err,
                        single_file ? gem_eff_2d        : nullptr,
                        single_file ? gem_2match_eff_2d : nullptr,
-                       single_file ? gem_inter_dxy     : nullptr);
+                       gem_inter_dxy);
         run_nums.push_back(extractRunNumber(fname));
         v_xerr.push_back(0.);
         for (int k = 0; k < 4; k++) {
@@ -292,7 +294,7 @@ void gem_eff(){
         c_trend2->Update();
     }
 
-    // Single-file mode: draw 2D efficiency maps and inter-layer residuals
+    // Single-file mode: draw 2D efficiency maps
     if (single_file) {
         TCanvas *c_eff = new TCanvas("c_eff", "GEM Efficiency", 1200, 800);
         c_eff->Divide(2, 2);
@@ -309,15 +311,15 @@ void gem_eff(){
             gem_2match_eff_2d[i]->SetStats(0);
             gem_2match_eff_2d[i]->Draw("COLZ");
         }
+    }
 
-        // Inter-layer position residuals: partner hit projected to this chamber's z
-        TCanvas *c_inter_dxy = new TCanvas("c_inter_dxy", "GEM Inter-layer #DeltaX vs #DeltaY", 1200, 800);
-        c_inter_dxy->Divide(2, 2);
-        for (int i = 0; i < 4; i++) {
-            c_inter_dxy->cd(i+1);
-            gem_inter_dxy[i]->SetStats(0);
-            gem_inter_dxy[i]->Draw("COLZ");
-        }
+    // Inter-layer position residuals: always drawn for all input files
+    TCanvas *c_inter_dxy = new TCanvas("c_inter_dxy", "GEM Inter-layer #DeltaX vs #DeltaY", 1200, 800);
+    c_inter_dxy->Divide(2, 2);
+    for (int i = 0; i < 4; i++) {
+        c_inter_dxy->cd(i+1);
+        gem_inter_dxy[i]->SetStats(0);
+        gem_inter_dxy[i]->Draw("COLZ");
     }
 }
 
