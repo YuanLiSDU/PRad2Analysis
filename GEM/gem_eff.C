@@ -237,10 +237,10 @@ void gem_eff(){
                                     300, -30, 30, 300, -30, 30);
         gem_should[i] = new TH2F(Form("h2_should_%d", i),
                                  Form("GEM%d Should Hit; x (mm); y (mm)", i),
-                                 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
+                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
         gem_match[i]  = new TH2F(Form("h2_match_%d",  i),
                                  Form("GEM%d Match Hit; x (mm); y (mm)", i),
-                                 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
+                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
         gem_inter_dx[i] = new TH1F(Form("h1_inter_dx_%d", i),
                                    Form("GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", i),
                                    300, -30, 30);
