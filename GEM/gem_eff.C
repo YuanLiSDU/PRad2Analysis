@@ -67,6 +67,11 @@ void processOneFile(const TString &fname,
     int nEntries = chain.GetEntries();
     std::cout << "Processing " << fname << " (" << nEntries << " entries) ..." << std::endl;
 
+    // GEM0 dead strip: x in [-170, 150] mm and y < 0
+    auto isGEM0Dead = [](float x, float y) -> bool {
+        return (x >= -170.f && x <= 150.f && y < 0.f);
+    };
+
     for (int i = 0; i < nEntries; i++) {
         chain.GetEntry(i);
         if (i % 10000 == 0)
@@ -82,6 +87,7 @@ void processOneFile(const TString &fname,
             for (int k = 0; k < 4; k++) {
                 float tx = cx, ty = cy, tz = cz;
                 TransformToGEMFrame(tx, ty, tz, k);
+                if (k == 0 && isGEM0Dead(tx, ty)) continue; // skip GEM0 dead strip
                 h_should[k]->Fill(tx, ty);
                 if ((data.matchFlag[j] & (1 << k)) != 0)
                     h_match[k]->Fill(data.matchGEMx[j][k], data.matchGEMy[j][k]);
@@ -90,8 +96,10 @@ void processOneFile(const TString &fname,
             // gem 0: require gem2 or gem3 to also match
             if (data.matchFlag[j] & (1<<2) || data.matchFlag[j] & (1<<3)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 0);
-                h_2sh[0]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<0)) h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
+                if (!isGEM0Dead(tx, ty)) { // skip GEM0 dead strip
+                    h_2sh[0]->Fill(tx, ty);
+                    if (data.matchFlag[j] & (1<<0)) h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
+                }
             }
             // gem 2: require gem0 or gem1 to also match
             if (data.matchFlag[j] & (1<<0) || data.matchFlag[j] & (1<<1)) {
@@ -119,7 +127,8 @@ void processOneFile(const TString &fname,
             // Prefer same-side partner (GEM0<->GEM2, GEM1<->GEM3), fallback to opposite-side.
             if (out_inter_dxy) {
                 // GEM0: prefer GEM2, fallback GEM3
-                if ((data.matchFlag[j] & (1<<0)) && out_inter_dxy[0]) {
+                if ((data.matchFlag[j] & (1<<0)) && out_inter_dxy[0] &&
+                    !isGEM0Dead(data.matchGEMx[j][0], data.matchGEMy[j][0])) {
                     int p = (data.matchFlag[j] & (1<<2)) ? 2 : (data.matchFlag[j] & (1<<3)) ? 3 : -1;
                     if (p >= 0) {
                         float dx = data.matchGEMx[j][0] - data.matchGEMx[j][p] * gz[0] / gz[p];
