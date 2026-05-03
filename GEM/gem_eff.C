@@ -37,7 +37,9 @@ void processOneFile(const TString &fname,
                     TH2F *out_gem_2match_eff[4],
                     TH2F *out_inter_dxy[4] = nullptr,
                     TH2F *out_should[4]    = nullptr,
-                    TH2F *out_match[4]     = nullptr)
+                    TH2F *out_match[4]     = nullptr,
+                    TH1F *out_inter_dx[4]  = nullptr,
+                    TH1F *out_inter_dy[4]  = nullptr)
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -123,6 +125,8 @@ void processOneFile(const TString &fname,
                         float dx = data.matchGEMx[j][0] - data.matchGEMx[j][p] * gz[0] / gz[p];
                         float dy = data.matchGEMy[j][0] - data.matchGEMy[j][p] * gz[0] / gz[p];
                         out_inter_dxy[0]->Fill(dx, dy);
+                        if (out_inter_dx && out_inter_dx[0]) out_inter_dx[0]->Fill(dx);
+                        if (out_inter_dy && out_inter_dy[0]) out_inter_dy[0]->Fill(dy);
                     }
                 }
                 // GEM1: prefer GEM3, fallback GEM2
@@ -132,6 +136,8 @@ void processOneFile(const TString &fname,
                         float dx = data.matchGEMx[j][1] - data.matchGEMx[j][p] * gz[1] / gz[p];
                         float dy = data.matchGEMy[j][1] - data.matchGEMy[j][p] * gz[1] / gz[p];
                         out_inter_dxy[1]->Fill(dx, dy);
+                        if (out_inter_dx && out_inter_dx[1]) out_inter_dx[1]->Fill(dx);
+                        if (out_inter_dy && out_inter_dy[1]) out_inter_dy[1]->Fill(dy);
                     }
                 }
                 // GEM2: prefer GEM0, fallback GEM1
@@ -141,6 +147,8 @@ void processOneFile(const TString &fname,
                         float dx = data.matchGEMx[j][2] - data.matchGEMx[j][p] * gz[2] / gz[p];
                         float dy = data.matchGEMy[j][2] - data.matchGEMy[j][p] * gz[2] / gz[p];
                         out_inter_dxy[2]->Fill(dx, dy);
+                        if (out_inter_dx && out_inter_dx[2]) out_inter_dx[2]->Fill(dx);
+                        if (out_inter_dy && out_inter_dy[2]) out_inter_dy[2]->Fill(dy);
                     }
                 }
                 // GEM3: prefer GEM1, fallback GEM0
@@ -150,6 +158,8 @@ void processOneFile(const TString &fname,
                         float dx = data.matchGEMx[j][3] - data.matchGEMx[j][p] * gz[3] / gz[p];
                         float dy = data.matchGEMy[j][3] - data.matchGEMy[j][p] * gz[3] / gz[p];
                         out_inter_dxy[3]->Fill(dx, dy);
+                        if (out_inter_dx && out_inter_dx[3]) out_inter_dx[3]->Fill(dx);
+                        if (out_inter_dy && out_inter_dy[3]) out_inter_dy[3]->Fill(dy);
                     }
                 }
             }
@@ -210,6 +220,8 @@ void gem_eff(){
     TH2F *gem_inter_dxy[4]    = {};
     TH2F *gem_should[4]       = {};
     TH2F *gem_match[4]        = {};
+    TH1F *gem_inter_dx[4]     = {};
+    TH1F *gem_inter_dy[4]     = {};
     for (int i = 0; i < 4; i++) {
         gem_inter_dxy[i] = new TH2F(Form("h2_inter_dxy_%d",  i),
                                     Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
@@ -220,6 +232,12 @@ void gem_eff(){
         gem_match[i]  = new TH2F(Form("h2_match_%d",  i),
                                  Form("GEM%d Match Hit; x (mm); y (mm)", i),
                                  25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
+        gem_inter_dx[i] = new TH1F(Form("h1_inter_dx_%d", i),
+                                   Form("GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", i),
+                                   300, -30, 30);
+        gem_inter_dy[i] = new TH1F(Form("h1_inter_dy_%d", i),
+                                   Form("GEM%d Inter-layer #DeltaY; #DeltaY (mm); Counts", i),
+                                   300, -30, 30);
     }
     if (single_file) {
         for (int i = 0; i < 4; i++) {
@@ -241,7 +259,9 @@ void gem_eff(){
                        single_file ? gem_2match_eff_2d : nullptr,
                        gem_inter_dxy,
                        gem_should,
-                       gem_match);
+                       gem_match,
+                       gem_inter_dx,
+                       gem_inter_dy);
         run_nums.push_back(extractRunNumber(fname));
         v_xerr.push_back(0.);
         for (int k = 0; k < 4; k++) {
@@ -334,6 +354,16 @@ void gem_eff(){
         c_inter_dxy->cd(i+1);
         gem_inter_dxy[i]->SetStats(0);
         gem_inter_dxy[i]->Draw("COLZ");
+    }
+
+    // 1D projections of inter-layer residuals: top row DeltaX, bottom row DeltaY
+    TCanvas *c_inter_1d = new TCanvas("c_inter_1d", "GEM Inter-layer #DeltaX & #DeltaY", 1600, 800);
+    c_inter_1d->Divide(4, 2);
+    for (int i = 0; i < 4; i++) {
+        c_inter_1d->cd(i+1);
+        gem_inter_dx[i]->Draw();
+        c_inter_1d->cd(i+5);
+        gem_inter_dy[i]->Draw();
     }
 
     // Should hit (top row) and match hit (bottom row) for all 4 chambers, all files combined
