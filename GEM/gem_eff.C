@@ -207,7 +207,7 @@ void gem_eff(){
     for (int i = 0; i < 4; i++) {
         gem_inter_dxy[i] = new TH2F(Form("h2_inter_dxy_%d",  i),
                                     Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
-                                    100, -30, 30, 100, -30, 30);
+                                    300, -30, 30, 300, -30, 30);
     }
     if (single_file) {
         for (int i = 0; i < 4; i++) {
