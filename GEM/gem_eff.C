@@ -67,9 +67,9 @@ void processOneFile(const TString &fname,
     int nEntries = chain.GetEntries();
     std::cout << "Processing " << fname << " (" << nEntries << " entries) ..." << std::endl;
 
-    // GEM0 dead strip: x in [-170, 150] mm and y < 0
+    // GEM0 dead strip: x in [-170, -150] mm and y < 0
     auto isGEM0Dead = [](float x, float y) -> bool {
-        return (x >= -170.f && x <= 150.f && y < 0.f);
+        return (x >= -170.f && x <= -150.f && y < 0.f);
     };
 
     for (int i = 0; i < nEntries; i++) {
@@ -78,7 +78,7 @@ void processOneFile(const TString &fname,
             std::cout << "  " << i << "/" << nEntries << "\r" << std::flush;
 
         for (int j = 0; j < data.n_clusters; j++) {
-            if (fabs(data.cl_energy[j] - Ebeam) > 400.) continue;
+            if (fabs(data.cl_energy[j] - Ebeam) > 600.) continue;
             if (fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue;
 
             // Use local copies to avoid accumulating coordinate transformations
