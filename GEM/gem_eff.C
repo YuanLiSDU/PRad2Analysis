@@ -13,7 +13,7 @@ float Ebeam = 3900.f; // MeV, can adjust as needed for different beam energies
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void TransformToGEMFrame(float &x, float &y, float &z, int gem_id);
 
-// 从文件名中提取第一段连续数字作为 run number，例如 24190_all.root -> 24190
+// Extract the first consecutive digits from a filename as the run number, e.g. 24190_all.root -> 24190
 int extractRunNumber(const TString &fname) {
     TString base = gSystem->BaseName(fname.Data());
     TString num_str = "";
@@ -22,19 +22,20 @@ int extractRunNumber(const TString &fname) {
         if (isdigit(c)) {
             num_str += c;
         } else if (num_str.Length() > 0) {
-            break; // 遇到第一段数字结束就停止
+            break; // stop after the first numeric segment
         }
     }
     return (num_str.Length() > 0) ? num_str.Atoi() : -1;
 }
 
-// 处理单个文件，计算各 GEM 的效率和误差（Binomial 误差）
-// 若 out_gem_eff / out_gem_2match_eff 不为 nullptr，则填充 2D 效率图
+// Process a single file, compute per-GEM efficiency and binomial errors.
+// If out_gem_eff / out_gem_2match_eff are non-null, also fill 2D efficiency histograms.
 void processOneFile(const TString &fname,
                     double eff[4],       double eff_err[4],
                     double eff2[4],      double eff2_err[4],
                     TH2F *out_gem_eff[4],
-                    TH2F *out_gem_2match_eff[4])
+                    TH2F *out_gem_2match_eff[4],
+                    TH2F *out_inter_dxy[4] = nullptr)
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -46,7 +47,7 @@ void processOneFile(const TString &fname,
     float gem_x_range_hi[4] = {0., 250., 0., 250.};
     const float gem_y_lo = -250., gem_y_hi = 250.;
 
-    // 用文件名做直方图名称前缀，避免多次调用时名称冲突
+    // Use the filename as histogram name prefix to avoid name conflicts across calls
     TString tag = gSystem->BaseName(fname.Data());
     tag.ReplaceAll(".root", "");
     tag.ReplaceAll(".", "_");
@@ -71,7 +72,7 @@ void processOneFile(const TString &fname,
             if (fabs(data.cl_energy[j] - Ebeam) > 400.) continue;
             if (fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue;
 
-            // 每次使用局部副本，避免坐标被累积修改
+            // Use local copies to avoid accumulating coordinate transformations
             float cx = data.cl_x[j], cy = data.cl_y[j], cz = data.cl_z[j];
 
             for (int k = 0; k < 4; k++) {
@@ -82,29 +83,73 @@ void processOneFile(const TString &fname,
                     h_match[k]->Fill(data.matchGEMx[j][k], data.matchGEMy[j][k]);
             }
 
-            // gem 0: 要求 gem2 或 gem3 也匹配
+            // gem 0: require gem2 or gem3 to also match
             if (data.matchFlag[j] & (1<<2) || data.matchFlag[j] & (1<<3)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 0);
                 h_2sh[0]->Fill(tx, ty);
                 if (data.matchFlag[j] & (1<<0)) h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
             }
-            // gem 2: 要求 gem0 或 gem1 也匹配
+            // gem 2: require gem0 or gem1 to also match
             if (data.matchFlag[j] & (1<<0) || data.matchFlag[j] & (1<<1)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 2);
                 h_2sh[2]->Fill(tx, ty);
                 if (data.matchFlag[j] & (1<<2)) h_2mh[2]->Fill(data.matchGEMx[j][2], data.matchGEMy[j][2]);
             }
-            // gem 1: 要求 gem3 或 gem2 也匹配
+            // gem 1: require gem3 or gem2 to also match
             if (data.matchFlag[j] & (1<<3) || data.matchFlag[j] & (1<<2)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 1);
                 h_2sh[1]->Fill(tx, ty);
                 if (data.matchFlag[j] & (1<<1)) h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
             }
-            // gem 3: 要求 gem1 或 gem0 也匹配
+            // gem 3: require gem1 or gem0 to also match
             if (data.matchFlag[j] & (1<<1) || data.matchFlag[j] & (1<<0)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 3);
                 h_2sh[3]->Fill(tx, ty);
                 if (data.matchFlag[j] & (1<<3)) h_2mh[3]->Fill(data.matchGEMx[j][3], data.matchGEMy[j][3]);
+            }
+
+            // Inter-layer position residuals:
+            // project the partner layer's hit to the current chamber's z, then compute delta.
+            // Layer A: GEM0 (left), GEM1 (right) at z~5800-5850
+            // Layer B: GEM2 (left), GEM3 (right) at z~5413-5459
+            // Prefer same-side partner (GEM0<->GEM2, GEM1<->GEM3), fallback to opposite-side.
+            if (out_inter_dxy) {
+                // GEM0: prefer GEM2, fallback GEM3
+                if ((data.matchFlag[j] & (1<<0)) && out_inter_dxy[0]) {
+                    int p = (data.matchFlag[j] & (1<<2)) ? 2 : (data.matchFlag[j] & (1<<3)) ? 3 : -1;
+                    if (p >= 0) {
+                        float dx = data.matchGEMx[j][0] - data.matchGEMx[j][p] * gz[0] / gz[p];
+                        float dy = data.matchGEMy[j][0] - data.matchGEMy[j][p] * gz[0] / gz[p];
+                        out_inter_dxy[0]->Fill(dx, dy);
+                    }
+                }
+                // GEM1: prefer GEM3, fallback GEM2
+                if ((data.matchFlag[j] & (1<<1)) && out_inter_dxy[1]) {
+                    int p = (data.matchFlag[j] & (1<<3)) ? 3 : (data.matchFlag[j] & (1<<2)) ? 2 : -1;
+                    if (p >= 0) {
+                        float dx = data.matchGEMx[j][1] - data.matchGEMx[j][p] * gz[1] / gz[p];
+                        float dy = data.matchGEMy[j][1] - data.matchGEMy[j][p] * gz[1] / gz[p];
+                        out_inter_dxy[1]->Fill(dx, dy);
+                    }
+                }
+                // GEM2: prefer GEM0, fallback GEM1
+                if ((data.matchFlag[j] & (1<<2)) && out_inter_dxy[2]) {
+                    int p = (data.matchFlag[j] & (1<<0)) ? 0 : (data.matchFlag[j] & (1<<1)) ? 1 : -1;
+                    if (p >= 0) {
+                        float dx = data.matchGEMx[j][2] - data.matchGEMx[j][p] * gz[2] / gz[p];
+                        float dy = data.matchGEMy[j][2] - data.matchGEMy[j][p] * gz[2] / gz[p];
+                        out_inter_dxy[2]->Fill(dx, dy);
+                    }
+                }
+                // GEM3: prefer GEM1, fallback GEM0
+                if ((data.matchFlag[j] & (1<<3)) && out_inter_dxy[3]) {
+                    int p = (data.matchFlag[j] & (1<<1)) ? 1 : (data.matchFlag[j] & (1<<0)) ? 0 : -1;
+                    if (p >= 0) {
+                        float dx = data.matchGEMx[j][3] - data.matchGEMx[j][p] * gz[3] / gz[p];
+                        float dy = data.matchGEMy[j][3] - data.matchGEMy[j][p] * gz[3] / gz[p];
+                        out_inter_dxy[3]->Fill(dx, dy);
+                    }
+                }
             }
         }
     }
@@ -133,7 +178,7 @@ void processOneFile(const TString &fname,
 }
 
 void gem_eff(){
-    // 收集命令行输入的 root 文件
+    // Collect input root files from command-line arguments
     std::vector<TString> input_files;
     int argc = gApplication->Argc();
     char **argv = gApplication->Argv();
@@ -155,17 +200,21 @@ void gem_eff(){
     float gem_x_range_lo[4] = {-250., 0., -250., 0.};
     float gem_x_range_hi[4] = {0., 250., 0., 250.};
 
-    // 单文件时创建 2D 效率图
+    // Create 2D efficiency histograms and inter-layer residual histograms for single-file mode
     TH2F *gem_eff_2d[4]       = {};
     TH2F *gem_2match_eff_2d[4]= {};
+    TH2F *gem_inter_dxy[4]    = {};
     if (single_file) {
         for (int i = 0; i < 4; i++) {
             gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
             gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
+            gem_inter_dxy[i]     = new TH2F(Form("h2_inter_dxy_%d",  i),
+                                            Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
+                                            100, -30, 30, 100, -30, 30);
         }
     }
 
-    // 收集每个文件的结果
+    // Collect per-file results
     std::vector<double> run_nums;
     std::vector<double> v_eff[4],  v_eff_err[4];
     std::vector<double> v_eff2[4], v_eff2_err[4];
@@ -175,7 +224,8 @@ void gem_eff(){
         double eff[4], eff_err[4], eff2[4], eff2_err[4];
         processOneFile(fname, eff, eff_err, eff2, eff2_err,
                        single_file ? gem_eff_2d        : nullptr,
-                       single_file ? gem_2match_eff_2d : nullptr);
+                       single_file ? gem_2match_eff_2d : nullptr,
+                       single_file ? gem_inter_dxy     : nullptr);
         run_nums.push_back(extractRunNumber(fname));
         v_xerr.push_back(0.);
         for (int k = 0; k < 4; k++) {
@@ -184,7 +234,7 @@ void gem_eff(){
         }
     }
 
-    // 按 run number 排序
+    // Sort by run number
     std::vector<int> order(nFiles);
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](int a, int b){ return run_nums[a] < run_nums[b]; });
@@ -197,13 +247,13 @@ void gem_eff(){
     auto sruns = reorder(run_nums);
     auto sxerr = reorder(v_xerr);
 
-    // 颜色和点型
+    // Colors and marker styles
     int colors[4]  = {kRed, kBlue, kGreen+2, kMagenta};
     int markers[4] = {20, 21, 22, 23};
 
-    // 多文件时画效率随 run 变化的趋势图
+    // Multi-file mode: draw efficiency vs run number trend graphs
     if (!single_file) {
-        // 简单效率趋势图
+        // Overall efficiency trend
         TCanvas *c_trend = new TCanvas("c_trend", "GEM Overall Efficiency vs Run", 900, 600);
         c_trend->SetGrid();
         TMultiGraph *mg = new TMultiGraph("mg_eff", "GEM Overall Efficiency vs Run; Run Number; Efficiency");
@@ -222,7 +272,7 @@ void gem_eff(){
         leg->Draw();
         c_trend->Update();
 
-        // 2-match 效率趋势图
+        // 2-match efficiency trend
         TCanvas *c_trend2 = new TCanvas("c_trend2", "GEM 2-Match Efficiency vs Run", 900, 600);
         c_trend2->SetGrid();
         TMultiGraph *mg2 = new TMultiGraph("mg_2match_eff", "GEM 2-Match Efficiency vs Run; Run Number; Efficiency");
@@ -242,7 +292,7 @@ void gem_eff(){
         c_trend2->Update();
     }
 
-    // 单文件时画 2D 效率分布图
+    // Single-file mode: draw 2D efficiency maps and inter-layer residuals
     if (single_file) {
         TCanvas *c_eff = new TCanvas("c_eff", "GEM Efficiency", 1200, 800);
         c_eff->Divide(2, 2);
@@ -258,6 +308,15 @@ void gem_eff(){
             c_2match_eff->cd(i+1);
             gem_2match_eff_2d[i]->SetStats(0);
             gem_2match_eff_2d[i]->Draw("COLZ");
+        }
+
+        // Inter-layer position residuals: partner hit projected to this chamber's z
+        TCanvas *c_inter_dxy = new TCanvas("c_inter_dxy", "GEM Inter-layer #DeltaX vs #DeltaY", 1200, 800);
+        c_inter_dxy->Divide(2, 2);
+        for (int i = 0; i < 4; i++) {
+            c_inter_dxy->cd(i+1);
+            gem_inter_dxy[i]->SetStats(0);
+            gem_inter_dxy[i]->Draw("COLZ");
         }
     }
 }
@@ -282,7 +341,7 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("matchGEMy",    ev.matchGEMy);
     tree->SetBranchAddress("matchGEMz",    ev.matchGEMz);
     tree->SetBranchAddress("match_num",     &ev.matchNum);
-    //quick and simple matching results for quick check
+    // Quick and simple matching results for fast checks
     tree->SetBranchAddress("mHit_E", ev.mHit_E);
     tree->SetBranchAddress("mHit_x", ev.mHit_x);
     tree->SetBranchAddress("mHit_y", ev.mHit_y);
@@ -291,7 +350,7 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("mHit_gy", ev.mHit_gy);
     tree->SetBranchAddress("mHit_gz", ev.mHit_gz);
     tree->SetBranchAddress("mHit_gid", ev.mHit_gid);
-    // GEM part
+    // GEM branches
     tree->SetBranchAddress("n_gem_hits",   &ev.n_gem_hits);
     tree->SetBranchAddress("det_id",       ev.det_id);
     tree->SetBranchAddress("gem_x",        ev.gem_x);
