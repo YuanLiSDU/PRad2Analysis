@@ -5,18 +5,37 @@
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void fitAndDraw(TH1F* hist, const float fit_range);
 
+float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
+
 void pos_calib()
 {   
     TChain *chain = new TChain("recon");
-    chain->Add("../data/prad_024004_recon.root");
+
+    // 从命令行参数中获取输入文件，例如: root -l pos_calib.C file1.root file2.root
+    bool files_added = false;
+    int argc = gApplication->Argc();
+    char **argv = gApplication->Argv();
+    for (int i = 1; i < argc; i++) {
+        TString arg(argv[i]);
+        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
+            chain->Add(arg);
+            std::cout << "Adding file: " << arg << std::endl;
+            files_added = true;
+        }
+    }
+    if (!files_added) {
+        chain->Add("../data/prad_024004_recon.root");
+        std::cout << "No input files specified, using default: ../data/prad_024004_recon.root" << std::endl;
+    }
+
     TTree *t = chain;
 
     ReconEventData data;
     setupReconBranches(t, data);
 
-    float gx[4] = {1.5, -1.13, 3.2, 2.37};
-    float gy[4] = {0,  1.5, 1.7, 1.66};
-    float gz[4] = {0,  0,   0,   0};
+    float gx[4] = {0, 0, 0, 0};
+    float gy[4] = {0, 0, 0, 0};
+    float gz[4] = {0, 0, 0, 0};
 
     TH2D *ep_pos = new TH2D("h2_ep_pos", "single cluster event distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
     TH2D *all_hit = new TH2D("h2_all_hit", "All cluster distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
@@ -64,7 +83,7 @@ void pos_calib()
             std::cout << "Processing entry " << i << "/" << nEntries << "\r" << std::flush;
         }
 
-        if (fabs(data.total_energy - 2108.f) < 200.) {
+        if (fabs(data.total_energy - Ebeam) < 200.) {
             for(int j = 0; j < data.n_gem_hits; j++) {
                 int det_id = data.det_id[j];
                     gem_hit_pos[det_id]->Fill(data.gem_x[j], data.gem_y[j]);
@@ -76,7 +95,7 @@ void pos_calib()
         }
 
         for(int j = 0; j < data.n_clusters; j++){
-            if(fabs(data.cl_energy[j] - 2108.f) < 200.)
+            if(fabs(data.cl_energy[j] - Ebeam) < 200.)
                 hit_Ecut->Fill(data.cl_x[j], data.cl_y[j]);
             all_hit->Fill(data.cl_x[j], data.cl_y[j]);
         }
@@ -90,7 +109,7 @@ void pos_calib()
         float Epair = h_m.first.E + h_m.second.E;
         float phi_diff = GetMollerPhiDiff(h_m);
 
-        if( fabs(Epair -2108.f) > 200. || fabs(phi_diff) > 10.0) continue;
+        if( fabs(Epair -Ebeam) > 200. || fabs(phi_diff) > 10.0) continue;
         if( fabs(data.cl_x[0]) < 20.75*2.5 && fabs(data.cl_y[0]) < 20.75*2.5) continue; 
         if( fabs(data.cl_x[1]) < 20.75*2.5 && fabs(data.cl_y[1]) < 20.75*2.5) continue;
 
@@ -116,7 +135,7 @@ void pos_calib()
     //moller analysis and filling histograms
     for (int i = 1; i < H_mollers.size(); i++) {
         auto event = H_mollers[i];
-        float z = GetMollerZdistance(event, 2108.f);
+        float z = GetMollerZdistance(event, Ebeam);
         float phi_diff = GetMollerPhiDiff(event);
         h_moller_pos->Fill(event.first.x, event.first.y);
         h_moller_pos->Fill(event.second.x, event.second.y);
@@ -132,7 +151,7 @@ void pos_calib()
     for (int k = 0; k < 4; k++) {
         for (int i = 1; i < G_mollers[k].size(); i++) {
             auto event = G_mollers[k][i];
-            float z = GetMollerZdistance(event, 2108.f);
+            float z = GetMollerZdistance(event, Ebeam);
             float phi_diff = GetMollerPhiDiff(event);
             g_moller_z[k]->Fill(z);
 

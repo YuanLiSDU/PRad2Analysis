@@ -2,16 +2,35 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
 
-float gx[4] = {0, -1.13, 3.2, 2.37};
-float gy[4] = {0,  1.5, 1.7, 1.66};
-float gz[4] = {5812.0,  5852.0,   5412.4,   5458.9};
+float gx[4] = {0, 0, 0, 0};
+float gy[4] = {0, 0, 0, 0};
+float gz[4] = {5805.0,  5850.0, 5413.0, 5458.9};
+
+float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
 
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void TransformToGEMFrame(float &x, float &y, float &z, int gem_id);
 
 void gem_eff(){
     TChain *chain = new TChain("recon");
-    chain->Add("../data/24017.root");
+
+    // 从命令行参数中获取输入文件，例如: root -l gem_eff.C file1.root file2.root
+    bool files_added = false;
+    int argc = gApplication->Argc();
+    char **argv = gApplication->Argv();
+    for (int i = 1; i < argc; i++) {
+        TString arg(argv[i]);
+        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
+            chain->Add(arg);
+            std::cout << "Adding file: " << arg << std::endl;
+            files_added = true;
+        }
+    }
+    if (!files_added) {
+        chain->Add("../data/24017.root");
+        std::cout << "No input files specified, using default: ../data/24017.root" << std::endl;
+    }
+
     TTree *t = chain;
 
     ReconEventData data;
@@ -26,7 +45,7 @@ void gem_eff(){
     float gem_x_range_lo[4] = {-250., -0, -250., -0.};
     float gem_x_range_hi[4] = {0., 250, 0, 250.};
     float eff_x_lo[4] = {-250., 0., -250., 0.};
-    float eff_x_hi[4] = {0., 250., 0., 250.};
+    float eff_xs_hi[4] = {0., 250., 0., 250.};
     float gem_y_range_lo = -250., gem_y_range_hi = 250.; 
     for (int i = 0; i < 4; i++) {
         gem_should_hit[i] = new TH2F(Form("h2_gem%d_should_hit", i), Form("GEM%d Should Hit Distribution; x (mm); y (mm)", i), 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_range_lo, gem_y_range_hi);
@@ -52,7 +71,7 @@ void gem_eff(){
         }
 
         for (int j = 0; j < data.n_clusters; j++) {
-            if( fabs(data.cl_energy[j] - 2108.f) > 200.) continue; 
+            if( fabs(data.cl_energy[j] - Ebeam) > 200.) continue; 
             if( fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue; // exclude central region
             for (int k = 0; k < 4; k++) {
                 TransformToGEMFrame(data.cl_x[j], data.cl_y[j], data.cl_z[j], k);
