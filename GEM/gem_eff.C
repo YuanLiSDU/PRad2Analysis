@@ -47,9 +47,9 @@ void processOneFile(const TString &fname,
     ReconEventData data;
     setupReconBranches(&chain, data);
 
-    float gem_x_range_lo[4] = {-250., 0., -250., 0.};
-    float gem_x_range_hi[4] = {0., 250., 0., 250.};
-    const float gem_y_lo = -250., gem_y_hi = 250.;
+    float gem_x_range_lo[4] = {-280., -10., -280., -10.};
+    float gem_x_range_hi[4] = {10., 280., 10., 280.};
+    const float gem_y_lo = -280., gem_y_hi = 280.;
 
     // Use the filename as histogram name prefix to avoid name conflicts across calls
     TString tag = gSystem->BaseName(fname.Data());
@@ -58,10 +58,10 @@ void processOneFile(const TString &fname,
 
     TH2F *h_should[4], *h_match[4], *h_2sh[4], *h_2mh[4];
     for (int i = 0; i < 4; i++) {
-        h_should[i] = new TH2F(Form("h_sh_%s_%d",  tag.Data(), i), "", 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_lo, gem_y_hi);
-        h_match[i]  = new TH2F(Form("h_mh_%s_%d",  tag.Data(), i), "", 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_lo, gem_y_hi);
-        h_2sh[i]    = new TH2F(Form("h_2sh_%s_%d", tag.Data(), i), "", 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_lo, gem_y_hi);
-        h_2mh[i]    = new TH2F(Form("h_2mh_%s_%d", tag.Data(), i), "", 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, gem_y_lo, gem_y_hi);
+        h_should[i] = new TH2F(Form("h_sh_%s_%d",  tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
+        h_match[i]  = new TH2F(Form("h_mh_%s_%d",  tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
+        h_2sh[i]    = new TH2F(Form("h_2sh_%s_%d", tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
+        h_2mh[i]    = new TH2F(Form("h_2mh_%s_%d", tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
     }
 
     int nEntries = chain.GetEntries();
@@ -337,7 +337,7 @@ void gem_eff(){
         c_trend2->Update();
     }
 
-    // Single-file mode: draw 2D efficiency maps
+    // Single-file mode: draw 2D efficiency maps and per-chamber summary with error bars
     if (single_file) {
         TCanvas *c_eff = new TCanvas("c_eff", "GEM Efficiency", 1200, 800);
         c_eff->Divide(2, 2);
@@ -354,6 +354,37 @@ void gem_eff(){
             gem_2match_eff_2d[i]->SetStats(0);
             gem_2match_eff_2d[i]->Draw("COLZ");
         }
+
+        // Per-chamber efficiency summary with binomial error bars
+        TCanvas *c_eff_summary = new TCanvas("c_eff_summary", "GEM Per-Chamber Efficiency Summary", 700, 500);
+        c_eff_summary->SetGrid();
+        double xpts[4] = {0, 1, 2, 3}, xerr0[4] = {0, 0, 0, 0};
+        double ypts[4], yerr[4], y2pts[4], y2err[4];
+        for (int k = 0; k < 4; k++) {
+            ypts[k]  = v_eff[k][0];   yerr[k]  = v_eff_err[k][0];
+            y2pts[k] = v_eff2[k][0];  y2err[k] = v_eff2_err[k][0];
+        }
+        TGraphErrors *gr_s  = new TGraphErrors(4, xpts, ypts,  xerr0, yerr);
+        TGraphErrors *gr_s2 = new TGraphErrors(4, xpts, y2pts, xerr0, y2err);
+        gr_s->SetName("gr_eff_summary");
+        gr_s->SetTitle("GEM Per-Chamber Efficiency; GEM ID; Efficiency");
+        gr_s->SetMarkerStyle(20); gr_s->SetMarkerSize(1.4);
+        gr_s->SetMarkerColor(kBlue); gr_s->SetLineColor(kBlue);
+        gr_s2->SetName("gr_2match_eff_summary");
+        gr_s2->SetMarkerStyle(21); gr_s2->SetMarkerSize(1.4);
+        gr_s2->SetMarkerColor(kRed); gr_s2->SetLineColor(kRed);
+        gr_s->Draw("AP");
+        gr_s->GetXaxis()->SetLimits(-0.5, 3.5);
+        gr_s->GetYaxis()->SetRangeUser(0., 1.05);
+        // label x axis with GEM IDs
+        for (int k = 0; k < 4; k++)
+            gr_s->GetXaxis()->SetBinLabel(gr_s->GetXaxis()->FindBin(k), Form("GEM%d", k));
+        gr_s2->Draw("P same");
+        TLegend *leg_s = new TLegend(0.12, 0.15, 0.45, 0.35);
+        leg_s->AddEntry(gr_s,  "Overall",  "P");
+        leg_s->AddEntry(gr_s2, "2-Match",  "P");
+        leg_s->Draw();
+        c_eff_summary->Update();
     }
 
     // Inter-layer position residuals: always drawn for all input files
