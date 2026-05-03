@@ -35,7 +35,9 @@ void processOneFile(const TString &fname,
                     double eff2[4],      double eff2_err[4],
                     TH2F *out_gem_eff[4],
                     TH2F *out_gem_2match_eff[4],
-                    TH2F *out_inter_dxy[4] = nullptr)
+                    TH2F *out_inter_dxy[4] = nullptr,
+                    TH2F *out_should[4]    = nullptr,
+                    TH2F *out_match[4]     = nullptr)
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -169,6 +171,8 @@ void processOneFile(const TString &fname,
             out_gem_eff[i]->Divide(h_match[i], h_should[i], 1, 1, "B");
         if (out_gem_2match_eff && out_gem_2match_eff[i])
             out_gem_2match_eff[i]->Divide(h_2mh[i], h_2sh[i], 1, 1, "B");
+        if (out_should && out_should[i]) out_should[i]->Add(h_should[i]);
+        if (out_match  && out_match[i])  out_match[i]->Add(h_match[i]);
     }
 
     for (int i = 0; i < 4; i++) {
@@ -204,10 +208,18 @@ void gem_eff(){
     TH2F *gem_eff_2d[4]       = {};
     TH2F *gem_2match_eff_2d[4]= {};
     TH2F *gem_inter_dxy[4]    = {};
+    TH2F *gem_should[4]       = {};
+    TH2F *gem_match[4]        = {};
     for (int i = 0; i < 4; i++) {
         gem_inter_dxy[i] = new TH2F(Form("h2_inter_dxy_%d",  i),
                                     Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
                                     300, -30, 30, 300, -30, 30);
+        gem_should[i] = new TH2F(Form("h2_should_%d", i),
+                                 Form("GEM%d Should Hit; x (mm); y (mm)", i),
+                                 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
+        gem_match[i]  = new TH2F(Form("h2_match_%d",  i),
+                                 Form("GEM%d Match Hit; x (mm); y (mm)", i),
+                                 25, gem_x_range_lo[i], gem_x_range_hi[i], 50, -250, 250);
     }
     if (single_file) {
         for (int i = 0; i < 4; i++) {
@@ -227,7 +239,9 @@ void gem_eff(){
         processOneFile(fname, eff, eff_err, eff2, eff2_err,
                        single_file ? gem_eff_2d        : nullptr,
                        single_file ? gem_2match_eff_2d : nullptr,
-                       gem_inter_dxy);
+                       gem_inter_dxy,
+                       gem_should,
+                       gem_match);
         run_nums.push_back(extractRunNumber(fname));
         v_xerr.push_back(0.);
         for (int k = 0; k < 4; k++) {
@@ -320,6 +334,18 @@ void gem_eff(){
         c_inter_dxy->cd(i+1);
         gem_inter_dxy[i]->SetStats(0);
         gem_inter_dxy[i]->Draw("COLZ");
+    }
+
+    // Should hit (top row) and match hit (bottom row) for all 4 chambers, all files combined
+    TCanvas *c_should_match = new TCanvas("c_should_match", "GEM Should Hit & Match Hit", 1600, 800);
+    c_should_match->Divide(4, 2);
+    for (int i = 0; i < 4; i++) {
+        c_should_match->cd(i+1);
+        gem_should[i]->SetStats(0);
+        gem_should[i]->Draw("COLZ");
+        c_should_match->cd(i+5);
+        gem_match[i]->SetStats(0);
+        gem_match[i]->Draw("COLZ");
     }
 }
 
