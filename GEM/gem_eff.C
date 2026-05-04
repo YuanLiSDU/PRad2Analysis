@@ -10,6 +10,14 @@ float gz[4] = {5805.0,  5850.0, 5413.0, 5458.9};
 
 float Ebeam = 3900.f; // MeV, can adjust as needed for different beam energies
 
+// 2D histogram ranges and bin counts
+const float gem_x_lo[4]   = {-280., -10., -280., -10.};
+const float gem_x_hi[4]   = {  10., 280.,   10., 280.};
+const float gem_y_lo      = -280., gem_y_hi = 280.;
+const int   gem_x_bins    = 80,    gem_y_bins = 160;
+const float inter_xy_lo   = -30.,  inter_xy_hi = 30.;
+const int   inter_xy_bins = 300;
+
 void setupReconBranches(TTree *tree, ReconEventData &ev);
 void TransformToGEMFrame(float &x, float &y, float &z, int gem_id);
 
@@ -49,10 +57,6 @@ void processOneFile(const TString &fname,
     ReconEventData data;
     setupReconBranches(&chain, data);
 
-    float gem_x_range_lo[4] = {-280., -10., -280., -10.};
-    float gem_x_range_hi[4] = {10., 280., 10., 280.};
-    const float gem_y_lo = -280., gem_y_hi = 280.;
-
     // Use the filename as histogram name prefix to avoid name conflicts across calls
     TString tag = gSystem->BaseName(fname.Data());
     tag.ReplaceAll(".root", "");
@@ -60,10 +64,10 @@ void processOneFile(const TString &fname,
 
     TH2F *h_should[4], *h_match[4], *h_2sh[4], *h_2mh[4];
     for (int i = 0; i < 4; i++) {
-        h_should[i] = new TH2F(Form("h_sh_%s_%d",  tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
-        h_match[i]  = new TH2F(Form("h_mh_%s_%d",  tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
-        h_2sh[i]    = new TH2F(Form("h_2sh_%s_%d", tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
-        h_2mh[i]    = new TH2F(Form("h_2mh_%s_%d", tag.Data(), i), "", 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, gem_y_lo, gem_y_hi);
+        h_should[i] = new TH2F(Form("h_sh_%s_%d",  tag.Data(), i), "", gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
+        h_match[i]  = new TH2F(Form("h_mh_%s_%d",  tag.Data(), i), "", gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
+        h_2sh[i]    = new TH2F(Form("h_2sh_%s_%d", tag.Data(), i), "", gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
+        h_2mh[i]    = new TH2F(Form("h_2mh_%s_%d", tag.Data(), i), "", gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
     }
 
     int nEntries = chain.GetEntries();
@@ -223,9 +227,6 @@ void gem_eff(){
 
     int nFiles = input_files.size();
 
-    float gem_x_range_lo[4] = {-280., -10., -280., -10.};
-    float gem_x_range_hi[4] = {10., 280., 10., 280.};
-
     // All histograms accumulated across all input files
     TH2F *gem_eff_2d[4]       = {};
     TH2F *gem_2match_eff_2d[4]= {};
@@ -239,27 +240,27 @@ void gem_eff(){
     for (int i = 0; i < 4; i++) {
         gem_inter_dxy[i] = new TH2F(Form("h2_inter_dxy_%d",  i),
                                     Form("GEM%d Inter-layer #DeltaX vs #DeltaY (partner projected to GEM%d z); #DeltaX (mm); #DeltaY (mm)", i, i),
-                                    300, -30, 30, 300, -30, 30);
+                                    inter_xy_bins, inter_xy_lo, inter_xy_hi, inter_xy_bins, inter_xy_lo, inter_xy_hi);
         gem_should[i] = new TH2F(Form("h2_should_%d", i),
                                  Form("GEM%d Should Hit; x (mm); y (mm)", i),
-                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+                                 gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
         gem_match[i]  = new TH2F(Form("h2_match_%d",  i),
                                  Form("GEM%d Match Hit; x (mm); y (mm)", i),
-                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+                                 gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
         gem_2sh[i]    = new TH2F(Form("h2_2sh_%d", i),
                                  Form("GEM%d 2-Match Should Hit; x (mm); y (mm)", i),
-                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+                                 gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
         gem_2mh[i]    = new TH2F(Form("h2_2mh_%d", i),
                                  Form("GEM%d 2-Match Hit; x (mm); y (mm)", i),
-                                 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
-        gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
-        gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), 40, gem_x_range_lo[i], gem_x_range_hi[i], 80, -280, 280);
+                                 gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
+        gem_eff_2d[i]        = new TH2F(Form("h2_eff_%d",       i), Form("GEM%d Efficiency; x (mm); y (mm)",        i), gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
+        gem_2match_eff_2d[i] = new TH2F(Form("h2_2match_eff_%d",i), Form("GEM%d 2-Match Efficiency; x (mm); y (mm)",i), gem_x_bins, gem_x_lo[i], gem_x_hi[i], gem_y_bins, gem_y_lo, gem_y_hi);
         gem_inter_dx[i] = new TH1F(Form("h1_inter_dx_%d", i),
                                    Form("GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", i),
-                                   300, -30, 30);
+                                   inter_xy_bins, inter_xy_lo, inter_xy_hi);
         gem_inter_dy[i] = new TH1F(Form("h1_inter_dy_%d", i),
                                    Form("GEM%d Inter-layer #DeltaY; #DeltaY (mm); Counts", i),
-                                   300, -30, 30);
+                                   inter_xy_bins, inter_xy_lo, inter_xy_hi);
     }
 
     // Collect per-file results
