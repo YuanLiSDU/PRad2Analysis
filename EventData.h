@@ -86,6 +86,7 @@ struct ReconEventData {
     uint8_t  trigger_type = 0;   // main trigger (from event tag: tag - 0x80)
     uint32_t trigger_bits = 0;   // FP trigger bits (multi-bit, from TI master d[5])
     long long  timestamp    = 0;
+    float EBeam = 0.f;
 
     // HyCal clusters
     float total_energy = 0.f;
@@ -152,6 +153,7 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("trigger_bits", &ev.trigger_bits);
     tree->SetBranchAddress("timestamp",    &ev.timestamp);
     tree->SetBranchAddress("total_energy", &ev.total_energy);
+    tree->SetBranchAddress("EBeam",        &ev.EBeam);
     // HyCal cluster branches
     tree->SetBranchAddress("n_clusters",   &ev.n_clusters);
     tree->SetBranchAddress("cl_x",         ev.cl_x);

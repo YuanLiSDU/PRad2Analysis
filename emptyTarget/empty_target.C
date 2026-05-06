@@ -1,154 +1,11 @@
-// Physical constants
-static constexpr float M_PROTON  = 938.272f;   // MeV
-static constexpr float M_ELECTRON = 0.511f;    // MeV
-static constexpr float DEG2RAD = 3.14159265f / 180.f;
-
-static constexpr int kMaxClusters  = 100;
-static constexpr int kMaxGemHits   = 400;
+#include "../EventData.h"
+#include "../PhysicsTools.h"
 
 namespace fs = std::filesystem;
 
-struct ReconEventData {
-    int      event_num    = 0;
-    uint8_t  trigger_type = 0;   // main trigger (from event tag: tag - 0x80)
-    uint32_t trigger_bits = 0;   // FP trigger bits (multi-bit, from TI master d[5])
-    long long  timestamp    = 0;
-    float     EBeam = 0.f;
-
-    // HyCal clusters
-    float total_energy = 0.f;
-    int     n_clusters = 0;
-    float cl_x[kMaxClusters]       = {};
-    float cl_y[kMaxClusters]       = {};
-    float cl_z[kMaxClusters]       = {};
-    float cl_energy[kMaxClusters]  = {};
-    uint8_t cl_nblocks[kMaxClusters] = {};
-    uint16_t cl_center[kMaxClusters]  = {};
-    uint32_t cl_flag[kMaxClusters]    = {};
-
-    // GEM reconstructed hits
-    int        n_gem_hits = 0;
-    uint8_t det_id[kMaxGemHits]       = {};
-    float   gem_x[kMaxGemHits]        = {};
-    float   gem_y[kMaxGemHits]        = {};
-    float   gem_x_charge[kMaxGemHits] = {};
-    float   gem_y_charge[kMaxGemHits] = {};
-    float   gem_x_peak[kMaxGemHits]   = {};
-    float   gem_y_peak[kMaxGemHits]   = {};
-    uint8_t gem_x_size[kMaxGemHits]   = {};
-    uint8_t gem_y_size[kMaxGemHits]   = {};
-
-    // Detector matching results
-    int      match_num = 0;
-    float matchHC_x[kMaxClusters] = {};
-    float matchHC_y[kMaxClusters] = {};
-    float matchHC_z[kMaxClusters] = {};
-    float matchHC_energy[kMaxClusters] = {};
-    uint16_t matchHC_center[kMaxClusters] = {};
-    uint32_t matchHC_flag[kMaxClusters] = {};
-    float matchG_x[kMaxClusters][2] = {}; // up/down GEM for each cluster
-    float matchG_y[kMaxClusters][2] = {};
-    float matchG_z[kMaxClusters][2] = {};
-    uint8_t matchG_det_id[kMaxClusters][2] = {};
-
-    //veto informations
-    int      veto_nch = 0;
-    uint8_t veto_id[4]   = {}; // 0,1,2,3 for veto1-4
-    int veto_npeaks[4] = {};
-    float veto_peak_time[4][8]     = {};
-    float veto_peak_integral[4][8] = {};
-
-    //LMS reference PMT information
-    int      lms_nch = 0;
-    uint8_t lms_id[4]   = {}; // 0,1,2,3 for lms1-4
-    int lms_npeaks[4] = {};
-    float lms_peak_time[4][8]     = {};
-    float lms_peak_integral[4][8] = {};
-
-    // Raw 0xE10C SSP trigger bank words (one variable-length entry per event)
-    std::vector<uint32_t> ssp_raw;
-};
-
-// Aliases for the shared replay data structures
-using EventVars_Recon = ReconEventData;
-
-// ── Tree branch struct ───────────────────────────────────────────────────
-void setupReconBranches(TTree *tree, EventVars_Recon &ev)
-{
-    tree->SetBranchAddress("event_num",    &ev.event_num);
-    tree->SetBranchAddress("trigger_bits", &ev.trigger_bits);
-    tree->SetBranchAddress("timestamp",    &ev.timestamp);
-    tree->SetBranchAddress("total_energy", &ev.total_energy);
-    tree->SetBranchAddress("EBeam",        &ev.EBeam);
-    // HyCal cluster branches
-    tree->SetBranchAddress("n_clusters",   &ev.n_clusters);
-    tree->SetBranchAddress("cl_x",         ev.cl_x);
-    tree->SetBranchAddress("cl_y",         ev.cl_y);
-    tree->SetBranchAddress("cl_z",         ev.cl_z);
-    tree->SetBranchAddress("cl_energy",    ev.cl_energy);
-    tree->SetBranchAddress("cl_nblocks",   ev.cl_nblocks);
-    tree->SetBranchAddress("cl_center",    ev.cl_center);
-    tree->SetBranchAddress("cl_flag",      ev.cl_flag);
-    // GEM part
-    tree->SetBranchAddress("n_gem_hits",   &ev.n_gem_hits);
-    tree->SetBranchAddress("det_id",       ev.det_id);
-    tree->SetBranchAddress("gem_x",        ev.gem_x);
-    tree->SetBranchAddress("gem_y",        ev.gem_y);
-    tree->SetBranchAddress("gem_x_charge", ev.gem_x_charge);
-    tree->SetBranchAddress("gem_y_charge", ev.gem_y_charge);
-    tree->SetBranchAddress("gem_x_peak",   ev.gem_x_peak);
-    tree->SetBranchAddress("gem_y_peak",   ev.gem_y_peak);
-    tree->SetBranchAddress("gem_x_size",   ev.gem_x_size);
-    tree->SetBranchAddress("gem_y_size",   ev.gem_y_size);
-    // Matching results
-    tree->SetBranchAddress("match_num",       &ev.match_num);
-    tree->SetBranchAddress("matchHC_x",       ev.matchHC_x);
-    tree->SetBranchAddress("matchHC_y",       ev.matchHC_y);
-    tree->SetBranchAddress("matchHC_z",       ev.matchHC_z);
-    tree->SetBranchAddress("matchHC_energy",  ev.matchHC_energy);
-    tree->SetBranchAddress("matchHC_center",  ev.matchHC_center);
-    tree->SetBranchAddress("matchHC_flag",    ev.matchHC_flag);
-    tree->SetBranchAddress("matchG_x",        ev.matchG_x);
-    tree->SetBranchAddress("matchG_y",        ev.matchG_y);
-    tree->SetBranchAddress("matchG_z",        ev.matchG_z);
-    tree->SetBranchAddress("matchG_det_id",   ev.matchG_det_id);
-}
-
-struct DataPoint
-{
-    float x;
-    float y;
-    float z;
-    float E;
-
-    DataPoint() {};
-    DataPoint(float xi, float yi, float zi, float Ei) : x(xi), y(yi), z(zi), E(Ei) {};
-};
-typedef std::pair<DataPoint, DataPoint> MollerEvent;
-typedef std::vector<MollerEvent> MollerData;
-
 static std::vector<std::string> collectRootFiles(const std::string &path);
-float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type);
-std::array<float, 2> GetMollerCenter(MollerEvent &event1, MollerEvent &event2);
 
-float GetPhiAngle(float x, float y)
-{
-    float phi = std::atan2(y, x) * 180.f / static_cast<float>(TMath::Pi());
-    if (phi < 0) phi += 360.f;
-    return phi;
-}
-float GetMollerPhiDiff(MollerEvent &event1)
-{
-    // Calculate the azimuthal angle difference (phi) for a Moller event
-    float x1 = event1.first.x, y1 = event1.first.y;
-    float x2 = event1.second.x, y2 = event1.second.y;
-    float phi1 = GetPhiAngle(x1, y1);
-    float phi2 = GetPhiAngle(x2, y2);
-    float phi_diff = fabs(phi1 - phi2) - 180.f; // Expecting back-to-back, so difference should be around 180 degrees
-    return phi_diff;
-}
-
-void processType(TTree *tree, EventVars_Recon &ev,
+void processType(TTree *tree, ReconEventData &ev,
                  TH2F *E_theta, TH2F *E_theta_mott, TH2F *E_theta_moller,
                  TH2F *all_hits, TH2F *mott_hits, TH2F *moller_hits,
                  TH2F *moller_center, TH1F *moller_vertex,
@@ -214,13 +71,13 @@ void processType(TTree *tree, EventVars_Recon &ev,
 void empty_target(){
 
     std::vector<std::string> A_files, B_files, C_files, D_files;
-    auto f = collectRootFiles("typeA/");
+    auto f = collectRootFiles("../data/prad_data/typeA/");
     A_files.insert(A_files.end(), f.begin(), f.end());
-        f = collectRootFiles("typeB/");
+        f = collectRootFiles("../data/prad_data/typeB/");
     B_files.insert(B_files.end(), f.begin(), f.end());
-        f = collectRootFiles("typeC/");
+        f = collectRootFiles("../data/prad_data/typeC/");
     C_files.insert(C_files.end(), f.begin(), f.end());
-        f = collectRootFiles("typeD/");
+        f = collectRootFiles("../data/prad_data/typeD/");
     D_files.insert(D_files.end(), f.begin(), f.end());
 
     TChain *Achain = new TChain("recon");
@@ -237,7 +94,7 @@ void empty_target(){
     TTree *Ctree = Cchain;
     TTree *Dtree = Dchain;
 
-    EventVars_Recon A_ev, B_ev, C_ev, D_ev;
+    ReconEventData A_ev, B_ev, C_ev, D_ev;
     setupReconBranches(Atree, A_ev);
     setupReconBranches(Btree, B_ev);
     setupReconBranches(Ctree, C_ev);
@@ -398,60 +255,4 @@ static std::vector<std::string> collectRootFiles(const std::string &path)
         files.push_back(path);
     }
     return files;
-}
-
-float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type)
-{
-    float theta = theta_deg * DEG2RAD;
-    float cos_t = std::cos(theta);
-    float sin_t = std::sin(theta);
-
-    if (type == "ep") {
-        // elastic e-p: E' = E * M / (M + E*(1 - cos_t))
-        // where M = proton mass
-        float expectE = EBeam * M_PROTON / (M_PROTON + EBeam * (1.f - cos_t));
-        return expectE;
-    }
-    if (type == "ee") {
-        // Moller scattering: exact lab-frame formula from 4-momentum conservation
-        // E' = m * [(gamma+1) + (gamma-1)*cos^2(theta)] / [(gamma+1) - (gamma-1)*cos^2(theta)]
-        float gamma = EBeam / M_ELECTRON;
-        float num = (gamma + 1.f) + (gamma - 1.f) * cos_t * cos_t;
-        float den = (gamma + 1.f) - (gamma - 1.f) * cos_t * cos_t;
-        if (den <= 0) return 0.f;
-        float expectE = M_ELECTRON * num / den;
-        return expectE;
-    }
-    return 0.f;
-}
-
-std::array<float, 2> GetMollerCenter(MollerEvent &event1, MollerEvent &event2)
-{
-    float x1[2], y1[2];
-    float x2[2], y2[2];
-
-    x1[0] = event1.first.x; y1[0] = event1.first.y;
-    x1[1] = event1.second.x; y1[1] = event1.second.y;
-    x2[0] = event2.first.x; y2[0] = event2.first.y;
-    x2[1] = event2.second.x; y2[1] = event2.second.y;
-
-    //two lines: y = ax + b, y = cx + d
-    float dx1 = x1[0] - x1[1];
-    float dx2 = x2[0] - x2[1];
-    if (std::abs(dx1) < 1e-6f || std::abs(dx2) < 1e-6f)
-        return {0.f, 0.f};  // vertical line — degenerate
-
-    float a = (y1[0] - y1[1]) / dx1;
-    float b = y1[0] - a * x1[0];
-    float c = (y2[0] - y2[1]) / dx2;
-    float d = y2[0] - c * x2[0];
-
-    if (std::abs(a - c) < 1e-6f)
-        return {0.f, 0.f};  // parallel lines — no intersection
-
-    float x_cross = (d - b) / (a - c);
-    float y_cross = a * x_cross + b;
-
-    return {x_cross, y_cross};
-
 }

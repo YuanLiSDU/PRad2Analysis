@@ -18,6 +18,9 @@ struct HCHit {
     float energy = 0.f;
     uint16_t center_id = 0; // index of central block
     uint32_t flag = -1;
+
+    HCHit() = default;
+    HCHit(float x_, float y_, float z_, float e_) : x(x_), y(y_), z(z_), energy(e_) {}
 };
 
 //data structure for storing reconstructed Moller events used for analysis
@@ -90,4 +93,51 @@ float GetMollerPhiDiff(const MollerEvent &event1)
     float phi2 = GetPhiAngle(x2, y2);
     float phi_diff = fabs(phi1 - phi2) - 180.f; // Expecting back-to-back, so difference should be around 180 degrees
     return phi_diff;
+}
+
+float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type)
+{
+    float theta = theta_deg * DEG2RAD;
+    float cos_t = std::cos(theta);
+    float sin_t = std::sin(theta);
+
+    if (type == "ep") {
+        // elastic e-p: E' = E * M / (M + E*(1 - cos_t))
+        // where M = proton mass
+        float expectE = EBeam * M_PROTON / (M_PROTON + EBeam * (1.f - cos_t));
+        return expectE;
+    }
+    if (type == "ee") {
+        // Moller scattering: exact lab-frame formula from 4-momentum conservation
+        // E' = m * [(gamma+1) + (gamma-1)*cos^2(theta)] / [(gamma+1) - (gamma-1)*cos^2(theta)]
+        float gamma = EBeam / M_ELECTRON;
+        float num = (gamma + 1.f) + (gamma - 1.f) * cos_t * cos_t;
+        float den = (gamma + 1.f) - (gamma - 1.f) * cos_t * cos_t;
+        if (den <= 0) return 0.f;
+        float expectE = M_ELECTRON * num / den;
+        return expectE;
+    }
+    return 0.f;
+}
+
+bool isMott(float energy, float EBeam, float sigma_percent)
+{
+    return fabs(energy - EBeam) < 3.f * sigma_percent * EBeam / sqrt(EBeam/1000.f);
+}
+
+bool isMoller_kinematic(float theta1, float energy1, float theta2, float energy2, float EBeam, float sigma_percent)
+{
+    float expectE1 = ExpectedEnergy(theta1, EBeam, "ee");
+    float expectE2 = ExpectedEnergy(theta2, EBeam, "ee");
+
+    bool E_sum = false, E1_ok = false, E2_ok = false, phi_ok = false;
+
+    if(fabs(energy1 + energy2 - EBeam) < 4.f * sigma_percent * EBeam / sqrt(EBeam/1000.f)) 
+        E_sum = true;
+    if(fabs(energy1 - expectE1) < 5.f * expectE1 * sigma_percent / sqrt(expectE1/1000.f)) 
+        E1_ok = true;
+    if(fabs(energy2 - expectE2) < 5.f * expectE2 * sigma_percent / sqrt(expectE2/1000.f)) 
+        E2_ok = true;
+
+    return E_sum && E1_ok && E2_ok;
 }

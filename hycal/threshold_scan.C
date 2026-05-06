@@ -36,6 +36,9 @@ void threshold_scan()
         hists[i]->SetDirectory(0);
         f->Close();
 
+        if (i == 3) hists[i]->Rebin(5); // larger bin width for 1800 MeV run
+        hists[i]->SetStats(0);
+        hists[i]->SetBinContent(1, 0); // ignore underflow bin for peak finding
         double peak = getPeakNear3500(hists[i]);
         printf("Peak near 3500 MeV: %s = %.1f\n", runs[i].label, peak);
         if (peak <= 0) { printf("Invalid peak value for %s, aborting.\n", runs[i].label); return; }
@@ -56,7 +59,7 @@ void threshold_scan()
     for (int i = 0; i < nRuns; ++i)
         ymax = std::max(ymax, hists[i]->GetMaximum());
     hists[0]->SetMaximum(ymax * 1.3);
-    hists[0]->SetMinimum(1e-4);
+    hists[0]->SetMinimum(1e-5);
 
     hists[0]->Draw("HIST");
     for (int i = 1; i < nRuns; ++i)
@@ -66,6 +69,8 @@ void threshold_scan()
     // then find the cumulative 1% point from that cut, and draw a vertical line.
     // The histogram display is unchanged; cut only affects this calculation.
     auto find1PctLine = [&](TH1F *h, int color) -> TLine* {
+        h->SetStats(0);
+        h->SetBinContent(1, 0); // ignore underflow bin
         int binLo = h->FindBin(500);
         int binHi = h->FindBin(2500);
         // Find minimum bin in [500, 2500] MeV
