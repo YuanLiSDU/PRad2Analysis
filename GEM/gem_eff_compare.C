@@ -54,7 +54,8 @@ static void fillCompareHists(const TString &fname,
                               TH2F *h_2sh[4], TH2F *h_2mh[4],
                               TH1F *h_dx[4],  TH1F *h_dy[4],
                               TH1F *h_nhits[4],
-                              TH1F *h_gemhc[4])
+                              TH1F *h_gemhc[4],
+                              TH1F *h_mx[4],  TH1F *h_my[4])
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -112,26 +113,41 @@ static void fillCompareHists(const TString &fname,
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 0);
                 if (!isGEM0Dead(tx, ty)) {
                     h_2sh[0]->Fill(tx, ty);
-                    if (data.matchFlag[j] & (1<<0)) h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
+                    if (data.matchFlag[j] & (1<<0)) {
+                        h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
+                    }
                 }
             }
             // GEM1: require GEM3 or GEM2
             if (data.matchFlag[j] & (1<<3) || data.matchFlag[j] & (1<<2)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 1);
                 h_2sh[1]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<1)) h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                if (data.matchFlag[j] & (1<<1)) {
+                    h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                }
             }
             // GEM2: require GEM0 or GEM1
             if (data.matchFlag[j] & (1<<0) || data.matchFlag[j] & (1<<1)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 2);
                 h_2sh[2]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<2)) h_2mh[2]->Fill(data.matchGEMx[j][2], data.matchGEMy[j][2]);
+                if (data.matchFlag[j] & (1<<2)) {
+                    h_2mh[2]->Fill(data.matchGEMx[j][2], data.matchGEMy[j][2]);
+                }
             }
             // GEM3: require GEM1 or GEM0
             if (data.matchFlag[j] & (1<<1) || data.matchFlag[j] & (1<<0)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 3);
                 h_2sh[3]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<3)) h_2mh[3]->Fill(data.matchGEMx[j][3], data.matchGEMy[j][3]);
+                if (data.matchFlag[j] & (1<<3)) {
+                    h_2mh[3]->Fill(data.matchGEMx[j][3], data.matchGEMy[j][3]);
+                }
+            }
+            // ---- Matched x/y 1D positions (any single match) ----------------
+            for (int k = 0; k < 4; k++) {
+                if (data.matchFlag[j] & (1<<k)) {
+                    if (h_mx && h_mx[k]) h_mx[k]->Fill(data.matchGEMx[j][k]);
+                    if (h_my && h_my[k]) h_my[k]->Fill(data.matchGEMy[j][k]);
+                }
             }
 
             // ---- Inter-layer DeltaX / DeltaY ----------------------------------
@@ -203,6 +219,7 @@ void gem_eff_compare()
     TH1F *h_dx   [2][4], *h_dy  [2][4];
     TH1F *h_nhits[2][4];
     TH1F *h_gemhc[2][4];
+    TH1F *h_mx   [2][4], *h_my[2][4];
 
     for (int c = 0; c < 2; c++) {
         TString tag = (c == 0) ? "c1" : "c2";
@@ -229,12 +246,18 @@ void gem_eff_compare()
             h_gemhc[c][i] = new TH1F(Form("hgemhc_%s_%d", tag.Data(), i),
                                     Form("%s  GEM%d # matching multiplicity (r<15 mm, 2-match evts); # matched GEM hits; Counts", cfg_label[c], i),
                                     51, -0.5, 50.5);
+            h_mx[c][i]    = new TH1F(Form("hmx_%s_%d",    tag.Data(), i),
+                                    Form("%s  GEM%d matched x; x (mm); Counts", cfg_label[c], i),
+                                    cmp_x_bins, cmp_x_lo[i], cmp_x_hi[i]);
+            h_my[c][i]    = new TH1F(Form("hmy_%s_%d",    tag.Data(), i),
+                                    Form("%s  GEM%d matched y; y (mm); Counts", cfg_label[c], i),
+                                    cmp_y_bins, cmp_y_lo, cmp_y_hi);
         }
     }
 
     // ---- Fill ---------------------------------------------------------------
     for (int c = 0; c < 2; c++) {
-        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c], h_gemhc[c]);
+        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c], h_gemhc[c], h_mx[c], h_my[c]);
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
@@ -356,7 +379,6 @@ void gem_eff_compare()
                 h_nhits[c][i]->SetLineColor(cfg_color[c]);
                 h_nhits[c][i]->SetLineWidth(2);
             }
-            h_nhits[0][i]->SetTitle(Form("GEM%d # hits (2-match evts); # hits; Normalized", i));
             h_nhits[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
             gPad->SetLogy();
             h_nhits[0][i]->Draw("HIST");
@@ -387,8 +409,6 @@ void gem_eff_compare()
                 h_gemhc[c][i]->SetLineColor(cfg_color[c]);
                 h_gemhc[c][i]->SetLineWidth(2);
             }
-            h_gemhc[0][i]->SetTitle(Form(
-                "GEM%d hits near HyCal (r<15mm, 2-match); # matched GEM hits; Normalized", i));
             h_gemhc[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
             gPad->SetLogy();
             h_gemhc[0][i]->Draw("HIST");
@@ -397,6 +417,56 @@ void gem_eff_compare()
                 TLegend *leg = new TLegend(0.45, 0.75, 0.92, 0.92);
                 leg->AddEntry(h_gemhc[0][i], cfg_label[0], "L");
                 leg->AddEntry(h_gemhc[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 7: Matched GEM x per chamber, both configs overlaid
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_mx_cmp", "GEM Matched x Position", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                h_mx[c][i]->SetLineColor(cfg_color[c]);
+                h_mx[c][i]->SetLineWidth(2);
+            }
+            h_mx[0][i]->SetTitle(Form("GEM%d matched x; x (mm); Counts", i));
+            h_mx[0][i]->Draw("HIST");
+            h_mx[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.12, 0.75, 0.56, 0.92);
+                leg->AddEntry(h_mx[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_mx[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 8: Matched GEM y per chamber, both configs overlaid
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_my_cmp", "GEM Matched y Position", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                h_my[c][i]->SetLineColor(cfg_color[c]);
+                h_my[c][i]->SetLineWidth(2);
+            }
+            h_my[0][i]->SetTitle(Form("GEM%d matched y; y (mm); Counts", i));
+            h_my[0][i]->Draw("HIST");
+            h_my[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.12, 0.75, 0.56, 0.92);
+                leg->AddEntry(h_my[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_my[1][i], cfg_label[1], "L");
                 leg->Draw();
             }
         }
