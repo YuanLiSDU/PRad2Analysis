@@ -4,7 +4,7 @@
 
 void fitAndDraw(TH1F* hist, const float fit_range);
 
-float Ebeam = 3900.f; // MeV, can adjust as needed for different beam energies
+float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
 
 void pos_calib()
 {   
@@ -43,7 +43,7 @@ void pos_calib()
 
     TH2F *h_moller_pos = new TH2F("h2_moller", "Moller event distribution (HyCal); x (mm); y (mm)", 100, -350, 350, 100, -350, 350);
     TH1F *h_moller_phi_diff = new TH1F("h1_moller_phi_diff", "Moller event phi difference distribution; #Delta#phi (degrees); Counts", 40, -15, 15);
-    TH1F *h_moller_z = new TH1F("h1_moller_z", "Moller vertex distribution(HyCal); z (mm); Counts", 400, 5700, 6700);
+    TH1F *h_moller_z = new TH1F("h1_moller_z", "Moller vertex distribution(HyCal); z (mm); Counts", 400*8, 5700-7000, 6700);
     TH1F *h_moller_x = new TH1F("h1_moller_x", "Moller center X distribution(HyCal); x (mm); Counts", 200, -30, 30);
     TH1F *h_moller_y = new TH1F("h1_moller_y", "Moller center Y distribution(HyCal); y (mm); Counts", 200, -30, 30);
     TH2F *h_moller_center = new TH2F("h2_moller_center", "Moller center distribution(HyCal); x (mm); y (mm)", 100, -200, 200, 100, -200, 200);
@@ -206,7 +206,7 @@ void pos_calib()
     TCanvas *c_moller_center = new TCanvas("c_moller_center", "Moller Center", 800, 600);
     h_moller_center->Draw("COLZ"); c_moller_center->SaveAs("../data/moller_center.png");
 
-    for (int k = 0; k < 4; k++) {
+    /*for (int k = 0; k < 4; k++) {
         TCanvas *cg1 = new TCanvas(Form("c_gem%d_center", k), Form("GEM%d Moller Center", k), 800, 600);
         g_moller_center[k]->Draw("COLZ"); cg1->SaveAs(Form("../data/gem%d_moller_center.png", k));
 
@@ -248,6 +248,7 @@ void pos_calib()
 
     TCanvas *c_hit_Ecut = new TCanvas("c_hit_Ecut", "Hits with E cut", 800, 600);
     hit_Ecut->Draw("COLZ");
+    */
 }
 
 void fitAndDraw(TH1F* hist, const float fit_range){
