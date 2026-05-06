@@ -218,16 +218,16 @@ void gem_eff_compare()
                                     cmp_x_bins, cmp_x_lo[i], cmp_x_hi[i],
                                     cmp_y_bins, cmp_y_lo, cmp_y_hi);
             h_dx[c][i]    = new TH1F(Form("hdx_%s_%d",    tag.Data(), i),
-                                    Form("%s  GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", cfg_label[c], i),
+                                    Form("%s  GEM%d #DeltaX; #DeltaX (mm); Counts", cfg_label[c], i),
                                     cmp_dxy_bins, cmp_dxy_lo, cmp_dxy_hi);
             h_dy[c][i]    = new TH1F(Form("hdy_%s_%d",    tag.Data(), i),
-                                    Form("%s  GEM%d Inter-layer #DeltaY; #DeltaY (mm); Counts", cfg_label[c], i),
+                                    Form("%s  GEM%d #DeltaY; #DeltaY (mm); Counts", cfg_label[c], i),
                                     cmp_dxy_bins, cmp_dxy_lo, cmp_dxy_hi);
             h_nhits[c][i] = new TH1F(Form("hnhits_%s_%d", tag.Data(), i),
                                     Form("%s  GEM%d # hits (2-match events); # GEM hits; Counts", cfg_label[c], i),
-                                    51, -0.5, 50.5);
+                                    400, -0.5, 400.5);
             h_gemhc[c][i] = new TH1F(Form("hgemhc_%s_%d", tag.Data(), i),
-                                    Form("%s  GEM%d # hits near HyCal (r<15 mm, 2-match evts); # matched GEM hits; Counts", cfg_label[c], i),
+                                    Form("%s  GEM%d # matching multiplicity (r<15 mm, 2-match evts); # matched GEM hits; Counts", cfg_label[c], i),
                                     51, -0.5, 50.5);
         }
     }
@@ -300,16 +300,11 @@ void gem_eff_compare()
         for (int i = 0; i < 4; i++) {
             cv->cd(i + 1);
             gPad->SetLeftMargin(0.12);
-            // Normalize to unit area for shape comparison
             for (int c = 0; c < 2; c++) {
-                double s = h_dx[c][i]->Integral();
-                if (s > 0) h_dx[c][i]->Scale(1. / s);
                 h_dx[c][i]->SetLineColor(cfg_color[c]);
                 h_dx[c][i]->SetLineWidth(2);
             }
-            h_dx[0][i]->SetTitle(Form("GEM%d  Inter-layer #DeltaX; #DeltaX (mm); Normalized", i));
-            h_dx[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
-            gPad->SetLogy();
+            h_dx[0][i]->SetTitle(Form("GEM%d #DeltaX of 2 GEMs(2 matching events); #DeltaX (mm); Counts", i));
             h_dx[0][i]->Draw("HIST");
             h_dx[1][i]->Draw("HIST SAME");
             if (i == 0) {
@@ -331,14 +326,10 @@ void gem_eff_compare()
             cv->cd(i + 1);
             gPad->SetLeftMargin(0.12);
             for (int c = 0; c < 2; c++) {
-                double s = h_dy[c][i]->Integral();
-                if (s > 0) h_dy[c][i]->Scale(1. / s);
                 h_dy[c][i]->SetLineColor(cfg_color[c]);
                 h_dy[c][i]->SetLineWidth(2);
             }
-            h_dy[0][i]->SetTitle(Form("GEM%d  Inter-layer #DeltaY; #DeltaY (mm); Normalized", i));
-            h_dy[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
-            gPad->SetLogy();
+            h_dy[0][i]->SetTitle(Form("GEM%d #DeltaY of 2 GEMs(2 matching events); #DeltaY (mm); Counts", i));
             h_dy[0][i]->Draw("HIST");
             h_dy[1][i]->Draw("HIST SAME");
             if (i == 0) {
