@@ -38,7 +38,8 @@ static void TrToGEM(float &x, float &y, float &z, int id) {
 // ---------------------------------------------------------------------------
 static void fillCompareHists(const TString &fname,
                               TH2F *h_2sh[4], TH2F *h_2mh[4],
-                              TH1F *h_dx[4],  TH1F *h_dy[4])
+                              TH1F *h_dx[4],  TH1F *h_dy[4],
+                              TH1F *h_nhits[4])
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -52,9 +53,30 @@ static void fillCompareHists(const TString &fname,
     int N = chain.GetEntries();
     std::cout << "Processing " << fname << " (" << N << " entries) ..." << std::endl;
 
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < N/2; i++) {
         chain.GetEntry(i);
         if (i % 10000 == 0) std::cout << "  " << i << "/" << N << "\r" << std::flush;
+
+        // ---- n_gem_hits per chamber for 2-match events ------------------
+        // A cluster is "2-match" if it is matched to chambers on both layers
+        // (layer A: GEM0/GEM1, layer B: GEM2/GEM3).
+        bool evt_has_2match = false;
+        for (int j = 0; j < data.n_clusters; j++) {
+            if (fabs(data.cl_energy[j] - Ebeam_cmp) > 250.) continue;
+            if (fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue;
+            bool layerA = (data.matchFlag[j] & (1<<0)) || (data.matchFlag[j] & (1<<1));
+            bool layerB = (data.matchFlag[j] & (1<<2)) || (data.matchFlag[j] & (1<<3));
+            if (layerA && layerB) { evt_has_2match = true; break; }
+        }
+        if (evt_has_2match && h_nhits) {
+            int cnt[4] = {};
+            for (int h = 0; h < data.n_gem_hits; h++) {
+                int id = (int)data.det_id[h];
+                if (id >= 0 && id < 4) cnt[id]++;
+            }
+            for (int k = 0; k < 4; k++)
+                if (h_nhits[k]) h_nhits[k]->Fill(cnt[k]);
+        }
 
         for (int j = 0; j < data.n_clusters; j++) {
             if (fabs(data.cl_energy[j] - Ebeam_cmp) > 250.) continue;
@@ -154,9 +176,10 @@ void gem_eff_compare()
     const int   cfg_marker[2]= {20,    21};
 
     // ---- Allocate histograms ------------------------------------------------
-    TH2F *h_2sh [2][4], *h_2mh [2][4];
-    TH2F *h_2eff[2][4];
-    TH1F *h_dx  [2][4], *h_dy  [2][4];
+    TH2F *h_2sh  [2][4], *h_2mh [2][4];
+    TH2F *h_2eff [2][4];
+    TH1F *h_dx   [2][4], *h_dy  [2][4];
+    TH1F *h_nhits[2][4];
 
     for (int c = 0; c < 2; c++) {
         TString tag = (c == 0) ? "c1" : "c2";
@@ -171,18 +194,21 @@ void gem_eff_compare()
                                     Form("%s  GEM%d 2-Match Efficiency; x (mm); y (mm)", cfg_label[c], i),
                                     cmp_x_bins, cmp_x_lo[i], cmp_x_hi[i],
                                     cmp_y_bins, cmp_y_lo, cmp_y_hi);
-            h_dx[c][i]   = new TH1F(Form("hdx_%s_%d",   tag.Data(), i),
+            h_dx[c][i]    = new TH1F(Form("hdx_%s_%d",    tag.Data(), i),
                                     Form("%s  GEM%d Inter-layer #DeltaX; #DeltaX (mm); Counts", cfg_label[c], i),
                                     cmp_dxy_bins, cmp_dxy_lo, cmp_dxy_hi);
-            h_dy[c][i]   = new TH1F(Form("hdy_%s_%d",   tag.Data(), i),
+            h_dy[c][i]    = new TH1F(Form("hdy_%s_%d",    tag.Data(), i),
                                     Form("%s  GEM%d Inter-layer #DeltaY; #DeltaY (mm); Counts", cfg_label[c], i),
                                     cmp_dxy_bins, cmp_dxy_lo, cmp_dxy_hi);
+            h_nhits[c][i] = new TH1F(Form("hnhits_%s_%d", tag.Data(), i),
+                                    Form("%s  GEM%d # hits (2-match events); # GEM hits; Counts", cfg_label[c], i),
+                                    51, -0.5, 50.5);
         }
     }
 
     // ---- Fill ---------------------------------------------------------------
     for (int c = 0; c < 2; c++) {
-        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c]);
+        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c]);
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
@@ -293,6 +319,35 @@ void gem_eff_compare()
                 TLegend *leg = new TLegend(0.12, 0.75, 0.56, 0.92);
                 leg->AddEntry(h_dy[0][i], cfg_label[0], "L");
                 leg->AddEntry(h_dy[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 5: # GEM hits per chamber in 2-match events, both configs overlaid
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_nhits_cmp", "GEM # Hits per Chamber (2-Match Events)", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                double s = h_nhits[c][i]->Integral();
+                if (s > 0) h_nhits[c][i]->Scale(1. / s);
+                h_nhits[c][i]->SetLineColor(cfg_color[c]);
+                h_nhits[c][i]->SetLineWidth(2);
+            }
+            h_nhits[0][i]->SetTitle(Form("GEM%d # hits (2-match evts); # hits; Normalized", i));
+            double ymax = std::max(h_nhits[0][i]->GetMaximum(), h_nhits[1][i]->GetMaximum());
+            h_nhits[0][i]->GetYaxis()->SetRangeUser(0., ymax * 1.25);
+            h_nhits[0][i]->Draw("HIST");
+            h_nhits[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.45, 0.75, 0.92, 0.92);
+                leg->AddEntry(h_nhits[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_nhits[1][i], cfg_label[1], "L");
                 leg->Draw();
             }
         }
