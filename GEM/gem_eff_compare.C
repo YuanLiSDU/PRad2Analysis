@@ -31,6 +31,20 @@ static void TrToGEM(float &x, float &y, float &z, int id) {
     x = x * r; y = y * r; z = gz_c[id];
 }
 
+// Project GEM hit (gx, gy at gz_gem) onto each HyCal cluster's z-plane and
+// return true if the projected point falls within radius_mm of any cluster.
+static bool gemNearHyCal(float gx, float gy, float gz_gem,
+                          const ReconEventData &data, float radius_mm = 15.f) {
+    float r2 = radius_mm * radius_mm;
+    for (int j = 0; j < data.n_clusters; j++) {
+        float scale = data.cl_z[j] / gz_gem;
+        float dx = gx * scale - data.cl_x[j];
+        float dy = gy * scale - data.cl_y[j];
+        if (dx*dx + dy*dy < r2) return true;
+    }
+    return false;
+}
+
 // ---------------------------------------------------------------------------
 // Fill per-file histograms needed for the comparison:
 //   h_2sh[4], h_2mh[4]  – 2-match should-hit / matched-hit (2D)
@@ -39,7 +53,8 @@ static void TrToGEM(float &x, float &y, float &z, int id) {
 static void fillCompareHists(const TString &fname,
                               TH2F *h_2sh[4], TH2F *h_2mh[4],
                               TH1F *h_dx[4],  TH1F *h_dy[4],
-                              TH1F *h_nhits[4])
+                              TH1F *h_nhits[4],
+                              TH1F *h_gemhc[4])
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -68,14 +83,21 @@ static void fillCompareHists(const TString &fname,
             bool layerB = (data.matchFlag[j] & (1<<2)) || (data.matchFlag[j] & (1<<3));
             if (layerA && layerB) { evt_has_2match = true; break; }
         }
-        if (evt_has_2match && h_nhits) {
-            int cnt[4] = {};
+        if (evt_has_2match) {
+            int cnt_hits[4] = {};
+            int cnt_hc  [4] = {};
             for (int h = 0; h < data.n_gem_hits; h++) {
                 int id = (int)data.det_id[h];
-                if (id >= 0 && id < 4) cnt[id]++;
+                if (id < 0 || id >= 4) continue;
+                cnt_hits[id]++;
+                // Project GEM hit to HyCal plane and check 15 mm match
+                if (gemNearHyCal(data.gem_x[h], data.gem_y[h], gz_c[id], data, 15.f))
+                    cnt_hc[id]++;
             }
-            for (int k = 0; k < 4; k++)
-                if (h_nhits[k]) h_nhits[k]->Fill(cnt[k]);
+            for (int k = 0; k < 4; k++) {
+                if (h_nhits && h_nhits[k]) h_nhits[k]->Fill(cnt_hits[k]);
+                if (h_gemhc && h_gemhc[k]) h_gemhc[k]->Fill(cnt_hc[k]);
+            }
         }
 
         for (int j = 0; j < data.n_clusters; j++) {
@@ -180,6 +202,7 @@ void gem_eff_compare()
     TH2F *h_2eff [2][4];
     TH1F *h_dx   [2][4], *h_dy  [2][4];
     TH1F *h_nhits[2][4];
+    TH1F *h_gemhc[2][4];
 
     for (int c = 0; c < 2; c++) {
         TString tag = (c == 0) ? "c1" : "c2";
@@ -203,12 +226,15 @@ void gem_eff_compare()
             h_nhits[c][i] = new TH1F(Form("hnhits_%s_%d", tag.Data(), i),
                                     Form("%s  GEM%d # hits (2-match events); # GEM hits; Counts", cfg_label[c], i),
                                     51, -0.5, 50.5);
+            h_gemhc[c][i] = new TH1F(Form("hgemhc_%s_%d", tag.Data(), i),
+                                    Form("%s  GEM%d # hits near HyCal (r<15 mm, 2-match evts); # matched GEM hits; Counts", cfg_label[c], i),
+                                    51, -0.5, 50.5);
         }
     }
 
     // ---- Fill ---------------------------------------------------------------
     for (int c = 0; c < 2; c++) {
-        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c]);
+        fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c], h_gemhc[c]);
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
@@ -282,8 +308,8 @@ void gem_eff_compare()
                 h_dx[c][i]->SetLineWidth(2);
             }
             h_dx[0][i]->SetTitle(Form("GEM%d  Inter-layer #DeltaX; #DeltaX (mm); Normalized", i));
-            double ymax = std::max(h_dx[0][i]->GetMaximum(), h_dx[1][i]->GetMaximum());
-            h_dx[0][i]->GetYaxis()->SetRangeUser(0., ymax * 1.2);
+            h_dx[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            gPad->SetLogy();
             h_dx[0][i]->Draw("HIST");
             h_dx[1][i]->Draw("HIST SAME");
             if (i == 0) {
@@ -311,8 +337,8 @@ void gem_eff_compare()
                 h_dy[c][i]->SetLineWidth(2);
             }
             h_dy[0][i]->SetTitle(Form("GEM%d  Inter-layer #DeltaY; #DeltaY (mm); Normalized", i));
-            double ymax = std::max(h_dy[0][i]->GetMaximum(), h_dy[1][i]->GetMaximum());
-            h_dy[0][i]->GetYaxis()->SetRangeUser(0., ymax * 1.2);
+            h_dy[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            gPad->SetLogy();
             h_dy[0][i]->Draw("HIST");
             h_dy[1][i]->Draw("HIST SAME");
             if (i == 0) {
@@ -340,14 +366,46 @@ void gem_eff_compare()
                 h_nhits[c][i]->SetLineWidth(2);
             }
             h_nhits[0][i]->SetTitle(Form("GEM%d # hits (2-match evts); # hits; Normalized", i));
-            double ymax = std::max(h_nhits[0][i]->GetMaximum(), h_nhits[1][i]->GetMaximum());
-            h_nhits[0][i]->GetYaxis()->SetRangeUser(0., ymax * 1.25);
+            h_nhits[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            gPad->SetLogy();
             h_nhits[0][i]->Draw("HIST");
             h_nhits[1][i]->Draw("HIST SAME");
             if (i == 0) {
                 TLegend *leg = new TLegend(0.45, 0.75, 0.92, 0.92);
                 leg->AddEntry(h_nhits[0][i], cfg_label[0], "L");
                 leg->AddEntry(h_nhits[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 6: # GEM hits per chamber matched to a HyCal cluster (r<15mm)
+    //           in 2-match events, both configs overlaid (normalized, log Y)
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_gemhc_cmp",
+                                  "GEM hits near HyCal (r<15 mm, 2-match events)", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                double s = h_gemhc[c][i]->Integral();
+                if (s > 0) h_gemhc[c][i]->Scale(1. / s);
+                h_gemhc[c][i]->SetLineColor(cfg_color[c]);
+                h_gemhc[c][i]->SetLineWidth(2);
+            }
+            h_gemhc[0][i]->SetTitle(Form(
+                "GEM%d hits near HyCal (r<15mm, 2-match); # matched GEM hits; Normalized", i));
+            h_gemhc[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            gPad->SetLogy();
+            h_gemhc[0][i]->Draw("HIST");
+            h_gemhc[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.45, 0.75, 0.92, 0.92);
+                leg->AddEntry(h_gemhc[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_gemhc[1][i], cfg_label[1], "L");
                 leg->Draw();
             }
         }
