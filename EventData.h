@@ -146,3 +146,47 @@ struct ReconEventData {
     // Raw 0xE10C SSP trigger bank words (one variable-length entry per event)
     std::vector<uint32_t> ssp_raw;
 };
+
+void setupReconBranches(TTree *tree, ReconEventData &ev){
+    tree->SetBranchAddress("event_num",    &ev.event_num);
+    tree->SetBranchAddress("trigger_bits", &ev.trigger_bits);
+    tree->SetBranchAddress("timestamp",    &ev.timestamp);
+    tree->SetBranchAddress("total_energy", &ev.total_energy);
+    // HyCal cluster branches
+    tree->SetBranchAddress("n_clusters",   &ev.n_clusters);
+    tree->SetBranchAddress("cl_x",         ev.cl_x);
+    tree->SetBranchAddress("cl_y",         ev.cl_y);
+    tree->SetBranchAddress("cl_z",         ev.cl_z);
+    tree->SetBranchAddress("cl_energy",    ev.cl_energy);
+    tree->SetBranchAddress("cl_nblocks",   ev.cl_nblocks);
+    tree->SetBranchAddress("cl_center",    ev.cl_center);
+    tree->SetBranchAddress("cl_flag",      ev.cl_flag);
+    // Matching results
+    tree->SetBranchAddress("matchFlag",    ev.matchFlag);
+    tree->SetBranchAddress("matchGEMx",    ev.matchGEMx);
+    tree->SetBranchAddress("matchGEMy",    ev.matchGEMy);
+    tree->SetBranchAddress("matchGEMz",    ev.matchGEMz);
+    tree->SetBranchAddress("match_num",     &ev.matchNum);
+    // Quick and simple matching results for fast checks
+    tree->SetBranchAddress("mHit_E", ev.mHit_E);
+    tree->SetBranchAddress("mHit_x", ev.mHit_x);
+    tree->SetBranchAddress("mHit_y", ev.mHit_y);
+    tree->SetBranchAddress("mHit_z", ev.mHit_z);
+    tree->SetBranchAddress("mHit_gx", ev.mHit_gx);
+    tree->SetBranchAddress("mHit_gy", ev.mHit_gy);
+    tree->SetBranchAddress("mHit_gz", ev.mHit_gz);
+    tree->SetBranchAddress("mHit_gid", ev.mHit_gid);
+    // GEM branches
+    tree->SetBranchAddress("n_gem_hits",   &ev.n_gem_hits);
+    tree->SetBranchAddress("det_id",       ev.det_id);
+    tree->SetBranchAddress("gem_x",        ev.gem_x);
+    tree->SetBranchAddress("gem_y",        ev.gem_y);
+    tree->SetBranchAddress("gem_x_charge", ev.gem_x_charge);
+    tree->SetBranchAddress("gem_y_charge", ev.gem_y_charge);
+    tree->SetBranchAddress("gem_x_peak",   ev.gem_x_peak);
+    tree->SetBranchAddress("gem_y_peak",   ev.gem_y_peak);
+    tree->SetBranchAddress("gem_x_size",   ev.gem_x_size);
+    tree->SetBranchAddress("gem_y_size",   ev.gem_y_size);
+    tree->SetBranchAddress("gem_x_mTbin",   ev.gem_x_mTbin);
+    tree->SetBranchAddress("gem_y_mTbin",   ev.gem_y_mTbin);
+};
