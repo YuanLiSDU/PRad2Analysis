@@ -97,7 +97,7 @@ static void fillCompareHists(const TString &fname,
                 bool near = gemNearHyCal(data.gem_x[h], data.gem_y[h], gz_c[id], data, 15.f);
                 if (near) cnt_hc[id]++;
 
-                float qx = data.gem_x_charge[h], qy = data.gem_y_charge[h];
+                float qx = data.gem_x_peak[h], qy = data.gem_y_peak[h];
                 int   szx  = (int)data.gem_x_size[h];
                 int   szy  = (int)data.gem_y_size[h];
                 float qsum = qx + qy;
@@ -513,7 +513,7 @@ void gem_eff_compare()
     {
         const int xc[2] = {kBlue, kRed};
         const int yc[2] = {kAzure+7, kOrange+7};
-        TCanvas *cv = new TCanvas("c_chg_cmp", "GEM Hit Charge (2-match evts)", 1600, 450);
+        TCanvas *cv = new TCanvas("c_chg_cmp", "GEM Hit seed Peak Charge (2-match evts)", 1600, 450);
         cv->Divide(4, 1);
         for (int i = 0; i < 4; i++) {
             cv->cd(i + 1);
@@ -525,7 +525,7 @@ void gem_eff_compare()
                 h_chgx[c][i]->SetLineColor(xc[c]); h_chgx[c][i]->SetLineWidth(2); h_chgx[c][i]->SetLineStyle(1);
                 h_chgy[c][i]->SetLineColor(yc[c]); h_chgy[c][i]->SetLineWidth(2); h_chgy[c][i]->SetLineStyle(2);
             }
-            h_chgx[0][i]->SetTitle(Form("GEM%d hit charge; Charge (ADC); Normalized", i));
+            h_chgx[0][i]->SetTitle(Form("GEM%d hit seed peak charge; Charge (ADC); Normalized", i));
             h_chgx[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
             h_chgx[0][i]->Draw("HIST");
             h_chgy[0][i]->Draw("HIST SAME");
