@@ -66,7 +66,22 @@ static void fillCompareHists(const TString &fname,
     setupReconBranches(&chain, data);
 
     auto isGEM0Dead = [](float x, float y) -> bool {
-        return (x >= -170.f && x <= -150.f && y < 0.f);
+        if (x >= -170.f && x <= -150.f && y < 0.f) return true;
+        if (x >= -0.f && y <= 0.f) return true;
+        return false;
+    };
+    auto isGEM1Dead = [](float x, float y) -> bool {
+        if (x <= -2.f && y <= 0.f) return true;
+        return false;
+    };
+    auto isGEM2Dead = [](float x, float y) -> bool {
+        //if (x >= -170.f && x <= -150.f && y < 0.f) return true;
+        //if (x >= -3.f && y <= 0.f) return true;
+        return false;
+    };
+    auto isGEM3Dead = [](float x, float y) -> bool {
+        //if (x <= -2.f && y <= 0.f) return true;
+        return false;
     };
 
     int N = chain.GetEntries();
@@ -122,38 +137,38 @@ static void fillCompareHists(const TString &fname,
             float cx = data.cl_x[j], cy = data.cl_y[j], cz = data.cl_z[j];
 
             // ---- 2-match efficiency histograms --------------------------------
+            // Both h_2sh and h_2mh are filled at the projected cluster position
+            // so numerator and denominator always land in the same bin (eff <= 1).
             // GEM0: require GEM2 or GEM3
             if (data.matchFlag[j] & (1<<2) || data.matchFlag[j] & (1<<3)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 0);
                 if (!isGEM0Dead(tx, ty)) {
                     h_2sh[0]->Fill(tx, ty);
-                    if (data.matchFlag[j] & (1<<0)) {
-                        h_2mh[0]->Fill(data.matchGEMx[j][0], data.matchGEMy[j][0]);
-                    }
+                    if (data.matchFlag[j] & (1<<0)) h_2mh[0]->Fill(tx, ty);
                 }
             }
             // GEM1: require GEM3 or GEM2
             if (data.matchFlag[j] & (1<<3) || data.matchFlag[j] & (1<<2)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 1);
-                h_2sh[1]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<1)) {
-                    h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                if (!isGEM1Dead(tx, ty)) {
+                    h_2sh[1]->Fill(tx, ty);
+                    if (data.matchFlag[j] & (1<<1)) h_2mh[1]->Fill(tx, ty);
                 }
             }
             // GEM2: require GEM0 or GEM1
             if (data.matchFlag[j] & (1<<0) || data.matchFlag[j] & (1<<1)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 2);
-                h_2sh[2]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<2)) {
-                    h_2mh[2]->Fill(data.matchGEMx[j][2], data.matchGEMy[j][2]);
+                if (!isGEM2Dead(tx, ty)) {
+                    h_2sh[2]->Fill(tx, ty);
+                    if (data.matchFlag[j] & (1<<2)) h_2mh[2]->Fill(tx, ty);
                 }
             }
             // GEM3: require GEM1 or GEM0
             if (data.matchFlag[j] & (1<<1) || data.matchFlag[j] & (1<<0)) {
                 float tx=cx, ty=cy, tz=cz; TrToGEM(tx, ty, tz, 3);
-                h_2sh[3]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<3)) {
-                    h_2mh[3]->Fill(data.matchGEMx[j][3], data.matchGEMy[j][3]);
+                if (!isGEM3Dead(tx, ty)) {
+                    h_2sh[3]->Fill(tx, ty);
+                    if (data.matchFlag[j] & (1<<3)) h_2mh[3]->Fill(tx, ty);
                 }
             }
             // ---- Matched x/y 1D positions (any single match) ----------------
@@ -175,7 +190,8 @@ static void fillCompareHists(const TString &fname,
                 }
             }
             // GEM1 (layer A right): prefer GEM3, fallback GEM2
-            if (data.matchFlag[j] & (1<<1)) {
+            if (data.matchFlag[j] & (1<<1) && 
+            !isGEM1Dead(data.matchGEMx[j][1], data.matchGEMy[j][1])) {
                 int p = (data.matchFlag[j] & (1<<3)) ? 3 : (data.matchFlag[j] & (1<<2)) ? 2 : -1;
                 if (p >= 0) {
                     h_dx[1]->Fill(data.matchGEMx[j][1] - data.matchGEMx[j][p] * gz_c[1] / gz_c[p]);
@@ -183,7 +199,8 @@ static void fillCompareHists(const TString &fname,
                 }
             }
             // GEM2 (layer B left): prefer GEM0, fallback GEM1
-            if (data.matchFlag[j] & (1<<2)) {
+            if (data.matchFlag[j] & (1<<2) && 
+            !isGEM2Dead(data.matchGEMx[j][2], data.matchGEMy[j][2])) {
                 int p = (data.matchFlag[j] & (1<<0)) ? 0 : (data.matchFlag[j] & (1<<1)) ? 1 : -1;
                 if (p >= 0) {
                     h_dx[2]->Fill(data.matchGEMx[j][2] - data.matchGEMx[j][p] * gz_c[2] / gz_c[p]);
@@ -191,7 +208,8 @@ static void fillCompareHists(const TString &fname,
                 }
             }
             // GEM3 (layer B right): prefer GEM1, fallback GEM0
-            if (data.matchFlag[j] & (1<<3)) {
+            if (data.matchFlag[j] & (1<<3) && 
+            !isGEM3Dead(data.matchGEMx[j][3], data.matchGEMy[j][3])) {
                 int p = (data.matchFlag[j] & (1<<1)) ? 1 : (data.matchFlag[j] & (1<<0)) ? 0 : -1;
                 if (p >= 0) {
                     h_dx[3]->Fill(data.matchGEMx[j][3] - data.matchGEMx[j][p] * gz_c[3] / gz_c[p]);
@@ -295,6 +313,21 @@ void gem_eff_compare()
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
+
+    // ---- Print 2-match efficiency summary to stdout -------------------------
+    std::cout << "\n===== 2-Match Efficiency Summary =====\n";
+    for (int c = 0; c < 2; c++) {
+        std::cout << cfg_label[c] << " (" << cfg_file[c] << "):\n";
+        for (int k = 0; k < 4; k++) {
+            double n2s = h_2sh[c][k]->Integral();
+            double n2m = h_2mh[c][k]->Integral();
+            double eff = (n2s > 0) ? n2m / n2s : 0.;
+            double err = (n2s > 0) ? sqrt(eff * (1. - eff) / n2s) : 0.;
+            std::cout << Form("  GEM%d: eff = %.4f +/- %.6f  (%.0f matched / %.0f should)\n",
+                              k, eff, err, n2m, n2s);
+        }
+    }
+    std::cout << "======================================\n\n";
 
     // ========================================================================
     // Canvas 1: 2-match efficiency per chamber (point comparison)
