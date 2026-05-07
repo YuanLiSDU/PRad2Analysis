@@ -18,11 +18,11 @@
 // ---- Geometry (same as gem_eff.C) ----------------------------------------
 static const float gz_c[4] = {5817.0, 5853.8, 5414.0, 5458.0};
 
-static const float cmp_x_lo[4]  = {-280., -10., -280., -10.};
-static const float cmp_x_hi[4]  = {  10., 280.,   10., 280.};
+static const float cmp_x_lo[4]  = {-280., -30., -280., -30.};
+static const float cmp_x_hi[4]  = {  30., 280.,   30., 280.};
 static const float cmp_y_lo     = -280., cmp_y_hi = 280.;
 static const int   cmp_x_bins   = 80,   cmp_y_bins = 160;
-static const float cmp_dxy_lo   = -30., cmp_dxy_hi = 30.;
+static const float cmp_dxy_lo   = -20., cmp_dxy_hi = 20.;
 static const int   cmp_dxy_bins = 300;
 static const float Ebeam_cmp    = 3488.43f;
 
@@ -56,8 +56,8 @@ static void fillCompareHists(const TString &fname,
                               TH1F *h_nhits[4],
                               TH1F *h_gemhc[4],
                               TH1F *h_mx[4],  TH1F *h_my[4],
-                              TH1F *h_chg_near[4], TH1F *h_chg_away[4],
-                              TH1F *h_sz_near[4],  TH1F *h_sz_away[4],
+                              TH1F *h_chgx[4], TH1F *h_chgy[4],
+                              TH1F *h_szx[4],  TH1F *h_szy[4],
                               TH1F *h_asym[4])
 {
     TChain chain("recon");
@@ -98,18 +98,15 @@ static void fillCompareHists(const TString &fname,
                 if (near) cnt_hc[id]++;
 
                 float qx = data.gem_x_charge[h], qy = data.gem_y_charge[h];
-                float chg  = (qx + qy) * 0.5f;
-                int   sz   = (int)data.gem_x_size[h] + (int)data.gem_y_size[h];
+                int   szx  = (int)data.gem_x_size[h];
+                int   szy  = (int)data.gem_y_size[h];
                 float qsum = qx + qy;
                 float asym = (qsum > 0.f) ? fabs(qx - qy) / qsum : 1.f;
 
-                if (near) {
-                    if (h_chg_near && h_chg_near[id]) h_chg_near[id]->Fill(chg);
-                    if (h_sz_near  && h_sz_near[id])  h_sz_near[id]->Fill(sz);
-                } else {
-                    if (h_chg_away && h_chg_away[id]) h_chg_away[id]->Fill(chg);
-                    if (h_sz_away  && h_sz_away[id])  h_sz_away[id]->Fill(sz);
-                }
+                if (h_chgx && h_chgx[id]) h_chgx[id]->Fill(qx);
+                if (h_chgy && h_chgy[id]) h_chgy[id]->Fill(qy);
+                if (h_szx  && h_szx[id])  h_szx[id]->Fill(szx);
+                if (h_szy  && h_szy[id])  h_szy[id]->Fill(szy);
                 if (h_asym && h_asym[id]) h_asym[id]->Fill(asym);
             }
             for (int k = 0; k < 4; k++) {
@@ -237,8 +234,8 @@ void gem_eff_compare()
     TH1F *h_nhits[2][4];
     TH1F *h_gemhc[2][4];
     TH1F *h_mx   [2][4], *h_my      [2][4];
-    TH1F *h_chg_near[2][4], *h_chg_away[2][4];
-    TH1F *h_sz_near [2][4], *h_sz_away [2][4];
+    TH1F *h_chgx [2][4], *h_chgy    [2][4];
+    TH1F *h_szx  [2][4], *h_szy     [2][4];
     TH1F *h_asym    [2][4];
 
     for (int c = 0; c < 2; c++) {
@@ -272,18 +269,18 @@ void gem_eff_compare()
             h_my[c][i]    = new TH1F(Form("hmy_%s_%d",    tag.Data(), i),
                                     Form("%s  GEM%d matched y; y (mm); Counts", cfg_label[c], i),
                                     cmp_y_bins, cmp_y_lo, cmp_y_hi);
-            h_chg_near[c][i] = new TH1F(Form("hchgnear_%s_%d", tag.Data(), i),
-                                    Form("%s  GEM%d avg charge near HyCal; (Qx+Qy)/2 (ADC); Counts", cfg_label[c], i),
+            h_chgx[c][i]  = new TH1F(Form("hchgx_%s_%d",  tag.Data(), i),
+                                    Form("%s  GEM%d x charge; Qx (ADC); Counts", cfg_label[c], i),
                                     200, 0., 5000.);
-            h_chg_away[c][i] = new TH1F(Form("hchgaway_%s_%d", tag.Data(), i),
-                                    Form("%s  GEM%d avg charge away HyCal; (Qx+Qy)/2 (ADC); Counts", cfg_label[c], i),
+            h_chgy[c][i]  = new TH1F(Form("hchgy_%s_%d",  tag.Data(), i),
+                                    Form("%s  GEM%d y charge; Qy (ADC); Counts", cfg_label[c], i),
                                     200, 0., 5000.);
-            h_sz_near[c][i]  = new TH1F(Form("hsznear_%s_%d",  tag.Data(), i),
-                                    Form("%s  GEM%d cluster size near HyCal; x_size+y_size; Counts", cfg_label[c], i),
-                                    32, -0.5, 31.5);
-            h_sz_away[c][i]  = new TH1F(Form("hszaway_%s_%d",  tag.Data(), i),
-                                    Form("%s  GEM%d cluster size away HyCal; x_size+y_size; Counts", cfg_label[c], i),
-                                    32, -0.5, 31.5);
+            h_szx[c][i]   = new TH1F(Form("hszx_%s_%d",   tag.Data(), i),
+                                    Form("%s  GEM%d x cluster size; x_size; Counts", cfg_label[c], i),
+                                    20, -0.5, 19.5);
+            h_szy[c][i]   = new TH1F(Form("hszy_%s_%d",   tag.Data(), i),
+                                    Form("%s  GEM%d y cluster size; y_size; Counts", cfg_label[c], i),
+                                    20, -0.5, 19.5);
             h_asym[c][i]     = new TH1F(Form("hasym_%s_%d",    tag.Data(), i),
                                     Form("%s  GEM%d charge asymmetry; |Qx-Qy|/(Qx+Qy); Counts", cfg_label[c], i),
                                     100, 0., 1.);
@@ -294,7 +291,7 @@ void gem_eff_compare()
     for (int c = 0; c < 2; c++) {
         fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c], h_gemhc[c],
                          h_mx[c], h_my[c],
-                         h_chg_near[c], h_chg_away[c], h_sz_near[c], h_sz_away[c], h_asym[c]);
+                         h_chgx[c], h_chgy[c], h_szx[c], h_szy[c], h_asym[c]);
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
@@ -511,13 +508,12 @@ void gem_eff_compare()
     }
 
     // ========================================================================
-    // Canvas 9: Avg hit charge near HyCal (r<15mm) vs away, per chamber
-    //   Row of 4 pads: each pad has 4 histos (cfg1/cfg2 x near/away)
+    // Canvas 9: Hit charge Qx and Qy per chamber, both configs overlaid
     // ========================================================================
     {
-        const int near_color[2] = {kBlue,   kRed};
-        const int away_color[2] = {kAzure+7, kOrange+7};
-        TCanvas *cv = new TCanvas("c_chg_cmp", "GEM Avg Hit Charge (2-match evts)", 1600, 450);
+        const int xc[2] = {kBlue, kRed};
+        const int yc[2] = {kAzure+7, kOrange+7};
+        TCanvas *cv = new TCanvas("c_chg_cmp", "GEM Hit Charge (2-match evts)", 1600, 450);
         cv->Divide(4, 1);
         for (int i = 0; i < 4; i++) {
             cv->cd(i + 1);
@@ -525,33 +521,33 @@ void gem_eff_compare()
             gPad->SetLogy();
             for (int c = 0; c < 2; c++) {
                 auto norm = [](TH1F *h){ double s=h->Integral(); if(s>0) h->Scale(1./s); };
-                norm(h_chg_near[c][i]); norm(h_chg_away[c][i]);
-                h_chg_near[c][i]->SetLineColor(near_color[c]); h_chg_near[c][i]->SetLineWidth(2); h_chg_near[c][i]->SetLineStyle(1);
-                h_chg_away[c][i]->SetLineColor(away_color[c]); h_chg_away[c][i]->SetLineWidth(2); h_chg_away[c][i]->SetLineStyle(2);
+                norm(h_chgx[c][i]); norm(h_chgy[c][i]);
+                h_chgx[c][i]->SetLineColor(xc[c]); h_chgx[c][i]->SetLineWidth(2); h_chgx[c][i]->SetLineStyle(1);
+                h_chgy[c][i]->SetLineColor(yc[c]); h_chgy[c][i]->SetLineWidth(2); h_chgy[c][i]->SetLineStyle(2);
             }
-            h_chg_near[0][i]->SetTitle(Form("GEM%d avg charge; (Qx+Qy)/2 (ADC); Normalized", i));
-            h_chg_near[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
-            h_chg_near[0][i]->Draw("HIST");
-            h_chg_away[0][i]->Draw("HIST SAME");
-            h_chg_near[1][i]->Draw("HIST SAME");
-            h_chg_away[1][i]->Draw("HIST SAME");
+            h_chgx[0][i]->SetTitle(Form("GEM%d hit charge; Charge (ADC); Normalized", i));
+            h_chgx[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            h_chgx[0][i]->Draw("HIST");
+            h_chgy[0][i]->Draw("HIST SAME");
+            h_chgx[1][i]->Draw("HIST SAME");
+            h_chgy[1][i]->Draw("HIST SAME");
             if (i == 0) {
                 TLegend *leg = new TLegend(0.38, 0.68, 0.95, 0.92);
-                leg->AddEntry(h_chg_near[0][i], Form("%s near", cfg_label[0]), "L");
-                leg->AddEntry(h_chg_away[0][i], Form("%s away", cfg_label[0]), "L");
-                leg->AddEntry(h_chg_near[1][i], Form("%s near", cfg_label[1]), "L");
-                leg->AddEntry(h_chg_away[1][i], Form("%s away", cfg_label[1]), "L");
+                leg->AddEntry(h_chgx[0][i], Form("%s Qx", cfg_label[0]), "L");
+                leg->AddEntry(h_chgy[0][i], Form("%s Qy", cfg_label[0]), "L");
+                leg->AddEntry(h_chgx[1][i], Form("%s Qx", cfg_label[1]), "L");
+                leg->AddEntry(h_chgy[1][i], Form("%s Qy", cfg_label[1]), "L");
                 leg->Draw();
             }
         }
     }
 
     // ========================================================================
-    // Canvas 10: Cluster size (x_size+y_size) near/away HyCal, per chamber
+    // Canvas 10: Cluster size x_size and y_size per chamber, both configs overlaid
     // ========================================================================
     {
-        const int near_color[2] = {kBlue,   kRed};
-        const int away_color[2] = {kAzure+7, kOrange+7};
+        const int xc[2] = {kBlue, kRed};
+        const int yc[2] = {kAzure+7, kOrange+7};
         TCanvas *cv = new TCanvas("c_sz_cmp", "GEM Cluster Size (2-match evts)", 1600, 450);
         cv->Divide(4, 1);
         for (int i = 0; i < 4; i++) {
@@ -560,22 +556,22 @@ void gem_eff_compare()
             gPad->SetLogy();
             for (int c = 0; c < 2; c++) {
                 auto norm = [](TH1F *h){ double s=h->Integral(); if(s>0) h->Scale(1./s); };
-                norm(h_sz_near[c][i]); norm(h_sz_away[c][i]);
-                h_sz_near[c][i]->SetLineColor(near_color[c]); h_sz_near[c][i]->SetLineWidth(2); h_sz_near[c][i]->SetLineStyle(1);
-                h_sz_away[c][i]->SetLineColor(away_color[c]); h_sz_away[c][i]->SetLineWidth(2); h_sz_away[c][i]->SetLineStyle(2);
+                norm(h_szx[c][i]); norm(h_szy[c][i]);
+                h_szx[c][i]->SetLineColor(xc[c]); h_szx[c][i]->SetLineWidth(2); h_szx[c][i]->SetLineStyle(1);
+                h_szy[c][i]->SetLineColor(yc[c]); h_szy[c][i]->SetLineWidth(2); h_szy[c][i]->SetLineStyle(2);
             }
-            h_sz_near[0][i]->SetTitle(Form("GEM%d cluster size; x_size+y_size; Normalized", i));
-            h_sz_near[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
-            h_sz_near[0][i]->Draw("HIST");
-            h_sz_away[0][i]->Draw("HIST SAME");
-            h_sz_near[1][i]->Draw("HIST SAME");
-            h_sz_away[1][i]->Draw("HIST SAME");
+            h_szx[0][i]->SetTitle(Form("GEM%d cluster size; size (strips); Normalized", i));
+            h_szx[0][i]->GetYaxis()->SetRangeUser(1e-5, 1.);
+            h_szx[0][i]->Draw("HIST");
+            h_szy[0][i]->Draw("HIST SAME");
+            h_szx[1][i]->Draw("HIST SAME");
+            h_szy[1][i]->Draw("HIST SAME");
             if (i == 0) {
                 TLegend *leg = new TLegend(0.38, 0.68, 0.95, 0.92);
-                leg->AddEntry(h_sz_near[0][i], Form("%s near", cfg_label[0]), "L");
-                leg->AddEntry(h_sz_away[0][i], Form("%s away", cfg_label[0]), "L");
-                leg->AddEntry(h_sz_near[1][i], Form("%s near", cfg_label[1]), "L");
-                leg->AddEntry(h_sz_away[1][i], Form("%s away", cfg_label[1]), "L");
+                leg->AddEntry(h_szx[0][i], Form("%s x_size", cfg_label[0]), "L");
+                leg->AddEntry(h_szy[0][i], Form("%s y_size", cfg_label[0]), "L");
+                leg->AddEntry(h_szx[1][i], Form("%s x_size", cfg_label[1]), "L");
+                leg->AddEntry(h_szy[1][i], Form("%s y_size", cfg_label[1]), "L");
                 leg->Draw();
             }
         }
