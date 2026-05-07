@@ -21,7 +21,7 @@ static const float gz_c[4] = {5817.0, 5853.8, 5414.0, 5458.0};
 static const float cmp_x_lo[4]  = {-380., -30., -380., -30.};
 static const float cmp_x_hi[4]  = {  30., 380.,   30., 380.};
 static const float cmp_y_lo     = -380., cmp_y_hi = 380.;
-static const int   cmp_x_bins   = 120,   cmp_y_bins = 240;
+static const int   cmp_x_bins   = 60,   cmp_y_bins =120;
 static const float cmp_dxy_lo   = -20., cmp_dxy_hi = 20.;
 static const int   cmp_dxy_bins = 300;
 static const float Ebeam_cmp    = 3488.43f;
@@ -102,6 +102,24 @@ static void fillCompareHists(const TString &fname,
             bool layerB = (data.matchFlag[j] & (1<<2)) || (data.matchFlag[j] & (1<<3));
             if (layerA && layerB) { evt_has_2match = true; break; }
         }
+        // Mark which GEM hits are matched to a qualifying cluster.
+        // Charge/size/asym histograms are filled only for matched hits.
+        bool is_matched_hit[kMaxGemHits] = {};
+        for (int j = 0; j < data.n_clusters; j++) {
+            if (fabs(data.cl_energy[j] - Ebeam_cmp) > 250.) continue;
+            if (fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue;
+            for (int k = 0; k < 4; k++) {
+                if (!(data.matchFlag[j] & (1<<k))) continue;
+                for (int h = 0; h < data.n_gem_hits; h++) {
+                    if ((int)data.det_id[h] == k &&
+                        data.gem_x[h] == data.matchGEMx[j][k] &&
+                        data.gem_y[h] == data.matchGEMy[j][k]) {
+                        is_matched_hit[h] = true;
+                        break;
+                    }
+                }
+            }
+        }
         if (evt_has_2match) {
             int cnt_hits[4] = {};
             int cnt_hc  [4] = {};
@@ -112,6 +130,7 @@ static void fillCompareHists(const TString &fname,
                 bool near = gemNearHyCal(data.gem_x[h], data.gem_y[h], gz_c[id], data, 15.f);
                 if (near) cnt_hc[id]++;
 
+                if (!is_matched_hit[h]) continue;
                 float qx = data.gem_x_peak[h], qy = data.gem_y_peak[h];
                 int   szx  = (int)data.gem_x_size[h];
                 int   szy  = (int)data.gem_y_size[h];
@@ -289,10 +308,10 @@ void gem_eff_compare()
                                     cmp_y_bins, cmp_y_lo, cmp_y_hi);
             h_chgx[c][i]  = new TH1F(Form("hchgx_%s_%d",  tag.Data(), i),
                                     Form("%s  GEM%d x charge; Qx (ADC); Counts", cfg_label[c], i),
-                                    200, 0., 5000.);
+                                    200, 0., 3000.);
             h_chgy[c][i]  = new TH1F(Form("hchgy_%s_%d",  tag.Data(), i),
                                     Form("%s  GEM%d y charge; Qy (ADC); Counts", cfg_label[c], i),
-                                    200, 0., 5000.);
+                                    200, 0., 3000.);
             h_szx[c][i]   = new TH1F(Form("hszx_%s_%d",   tag.Data(), i),
                                     Form("%s  GEM%d x cluster size; x_size; Counts", cfg_label[c], i),
                                     20, -0.5, 19.5);
@@ -329,6 +348,19 @@ void gem_eff_compare()
     }
     std::cout << "======================================\n\n";
 
+    // ---- Print h_gemhc [6,50] fraction for Config1 -------------------------
+    std::cout << "===== Config1 GEM-near-HyCal multiplicity fraction [6,50] =====\n";
+    for (int k = 0; k < 4; k++) {
+        double total = h_gemhc[0][k]->Integral();
+        int b6  = h_gemhc[0][k]->FindBin(6);
+        int b50 = h_gemhc[0][k]->FindBin(50);
+        double tail = h_gemhc[0][k]->Integral(b6, b50);
+        double frac = (total > 0) ? tail / total : 0.;
+        std::cout << Form("  GEM%d: %.0f / %.0f = %.4f (%.2f%%)\n",
+                          k, tail, total, frac, frac * 100.);
+    }
+    std::cout << "===============================================================\n\n";
+
     // ========================================================================
     // Canvas 1: 2-match efficiency per chamber (point comparison)
     // ========================================================================
@@ -352,6 +384,16 @@ void gem_eff_compare()
             gr->SetMarkerColor(cfg_color[c]);  gr->SetLineColor(cfg_color[c]);
             mg->Add(gr, "PL");
             leg->AddEntry(gr, cfg_label[c], "PL");
+        }
+        // Config3: manually specified efficiency values (no ROOT file)
+        {
+            double ypts3[4] = {0.36, 0.50, 0.39, 0.44};
+            TGraph *gr3 = new TGraph(4, xpts, ypts3);
+            gr3->SetName("gr2m_cfg3");
+            gr3->SetMarkerStyle(22); gr3->SetMarkerSize(1.5);
+            gr3->SetMarkerColor(kGreen+2); gr3->SetLineColor(kGreen+2);
+            mg->Add(gr3, "PL");
+            leg->AddEntry(gr3, "Config3", "PL");
         }
         mg->Draw("A");
         mg->GetXaxis()->SetLimits(-0.5, 3.5);
