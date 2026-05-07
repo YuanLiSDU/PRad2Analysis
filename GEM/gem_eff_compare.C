@@ -18,10 +18,10 @@
 // ---- Geometry (same as gem_eff.C) ----------------------------------------
 static const float gz_c[4] = {5817.0, 5853.8, 5414.0, 5458.0};
 
-static const float cmp_x_lo[4]  = {-280., -30., -280., -30.};
-static const float cmp_x_hi[4]  = {  30., 280.,   30., 280.};
-static const float cmp_y_lo     = -280., cmp_y_hi = 280.;
-static const int   cmp_x_bins   = 80,   cmp_y_bins = 160;
+static const float cmp_x_lo[4]  = {-380., -30., -380., -30.};
+static const float cmp_x_hi[4]  = {  30., 380.,   30., 380.};
+static const float cmp_y_lo     = -380., cmp_y_hi = 380.;
+static const int   cmp_x_bins   = 120,   cmp_y_bins = 240;
 static const float cmp_dxy_lo   = -20., cmp_dxy_hi = 20.;
 static const int   cmp_dxy_bins = 300;
 static const float Ebeam_cmp    = 3488.43f;
