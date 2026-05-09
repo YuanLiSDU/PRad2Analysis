@@ -58,7 +58,8 @@ static void fillCompareHists(const TString &fname,
                               TH1F *h_mx[4],  TH1F *h_my[4],
                               TH1F *h_chgx[4], TH1F *h_chgy[4],
                               TH1F *h_szx[4],  TH1F *h_szy[4],
-                              TH1F *h_asym[4])
+                              TH1F *h_asym[4],
+                              TH1F *h_ghdx[4], TH1F *h_ghdy[4])
 {
     TChain chain("recon");
     chain.Add(fname);
@@ -195,6 +196,12 @@ static void fillCompareHists(const TString &fname,
                 if (data.matchFlag[j] & (1<<k)) {
                     if (h_mx && h_mx[k]) h_mx[k]->Fill(data.matchGEMx[j][k]);
                     if (h_my && h_my[k]) h_my[k]->Fill(data.matchGEMy[j][k]);
+                    // ---- GEM hit vs HyCal cluster deltaX/deltaY ----------------
+                    float scale_gh = gz_c[k] / data.cl_z[j];
+                    float hcx_at_gem = data.cl_x[j] * scale_gh;
+                    float hcy_at_gem = data.cl_y[j] * scale_gh;
+                    if (h_ghdx && h_ghdx[k]) h_ghdx[k]->Fill(data.matchGEMx[j][k] - hcx_at_gem);
+                    if (h_ghdy && h_ghdy[k]) h_ghdy[k]->Fill(data.matchGEMy[j][k] - hcy_at_gem);
                 }
             }
 
@@ -273,7 +280,8 @@ void gem_eff_compare()
     TH1F *h_mx   [2][4], *h_my      [2][4];
     TH1F *h_chgx [2][4], *h_chgy    [2][4];
     TH1F *h_szx  [2][4], *h_szy     [2][4];
-    TH1F *h_asym    [2][4];
+    TH1F *h_asym [2][4];
+    TH1F *h_ghdx [2][4], *h_ghdy    [2][4];
 
     for (int c = 0; c < 2; c++) {
         TString tag = (c == 0) ? "c1" : "c2";
@@ -321,6 +329,12 @@ void gem_eff_compare()
             h_asym[c][i]     = new TH1F(Form("hasym_%s_%d",    tag.Data(), i),
                                     Form("%s  GEM%d charge asymmetry; |Qx-Qy|/(Qx+Qy); Counts", cfg_label[c], i),
                                     100, 0., 1.);
+            h_ghdx[c][i]  = new TH1F(Form("hghdx_%s_%d",  tag.Data(), i),
+                                    Form("%s  GEM%d GEM-HyCal #DeltaX; #DeltaX (mm); Counts", cfg_label[c], i),
+                                    300, -30., 30.);
+            h_ghdy[c][i]  = new TH1F(Form("hghdy_%s_%d",  tag.Data(), i),
+                                    Form("%s  GEM%d GEM-HyCal #DeltaY; #DeltaY (mm); Counts", cfg_label[c], i),
+                                    300, -30., 30.);
         }
     }
 
@@ -328,7 +342,8 @@ void gem_eff_compare()
     for (int c = 0; c < 2; c++) {
         fillCompareHists(cfg_file[c], h_2sh[c], h_2mh[c], h_dx[c], h_dy[c], h_nhits[c], h_gemhc[c],
                          h_mx[c], h_my[c],
-                         h_chgx[c], h_chgy[c], h_szx[c], h_szy[c], h_asym[c]);
+                         h_chgx[c], h_chgy[c], h_szx[c], h_szy[c], h_asym[c],
+                         h_ghdx[c], h_ghdy[c]);
         for (int i = 0; i < 4; i++)
             h_2eff[c][i]->Divide(h_2mh[c][i], h_2sh[c][i], 1, 1, "B");
     }
@@ -653,7 +668,57 @@ void gem_eff_compare()
     }
 
     // ========================================================================
-    // Canvas 11: Charge asymmetry |Qx-Qy|/(Qx+Qy) per chamber
+    // Canvas 11: GEM hit vs HyCal cluster DeltaX per chamber
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_ghdx_cmp", "GEM-HyCal #DeltaX Comparison", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                h_ghdx[c][i]->SetLineColor(cfg_color[c]);
+                h_ghdx[c][i]->SetLineWidth(2);
+            }
+            h_ghdx[0][i]->SetTitle(Form("GEM%d GEM-HyCal #DeltaX; #DeltaX (mm); Counts", i));
+            h_ghdx[0][i]->Draw("HIST");
+            h_ghdx[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.12, 0.75, 0.56, 0.92);
+                leg->AddEntry(h_ghdx[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_ghdx[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 12: GEM hit vs HyCal cluster DeltaY per chamber
+    // ========================================================================
+    {
+        TCanvas *cv = new TCanvas("c_ghdy_cmp", "GEM-HyCal #DeltaY Comparison", 1600, 450);
+        cv->Divide(4, 1);
+        for (int i = 0; i < 4; i++) {
+            cv->cd(i + 1);
+            gPad->SetLeftMargin(0.12);
+            for (int c = 0; c < 2; c++) {
+                h_ghdy[c][i]->SetLineColor(cfg_color[c]);
+                h_ghdy[c][i]->SetLineWidth(2);
+            }
+            h_ghdy[0][i]->SetTitle(Form("GEM%d GEM-HyCal #DeltaY; #DeltaY (mm); Counts", i));
+            h_ghdy[0][i]->Draw("HIST");
+            h_ghdy[1][i]->Draw("HIST SAME");
+            if (i == 0) {
+                TLegend *leg = new TLegend(0.12, 0.75, 0.56, 0.92);
+                leg->AddEntry(h_ghdy[0][i], cfg_label[0], "L");
+                leg->AddEntry(h_ghdy[1][i], cfg_label[1], "L");
+                leg->Draw();
+            }
+        }
+    }
+
+    // ========================================================================
+    // Canvas 13: Charge asymmetry |Qx-Qy|/(Qx+Qy) per chamber
     //   Noise on one strip projection → asymmetry → peak near 1
     // ========================================================================
     {
