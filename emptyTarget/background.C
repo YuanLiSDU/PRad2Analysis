@@ -10,8 +10,25 @@ void background(){
     float resolution = 0.026 * 1.5;
     float Ebeam = 3488.43; // MeV
 
-    TFile *f = TFile::Open("../data/empty_target/prad_24386.filtered.root");
-    TTree *tree = (TTree*)f->Get("recon");
+    TChain *tree = new TChain("recon");
+
+    // 从命令行参数中获取输入文件，例如: root -l background.C file1.root file2.root
+    bool files_added = false;
+    int argc = gApplication->Argc();
+    char **argv = gApplication->Argv();
+    for (int i = 1; i < argc; i++) {
+        TString arg(argv[i]);
+        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
+            tree->Add(arg);
+            std::cout << "Adding file: " << arg << std::endl;
+            files_added = true;
+        }
+    }
+    if (!files_added) {
+        tree->Add("../data/empty_target/prad_24386.filtered.root");
+        std::cout << "No input files specified, using default: ../data/empty_target/prad_24386.filtered.root" << std::endl;
+    }
+
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
