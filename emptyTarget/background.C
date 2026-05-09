@@ -177,7 +177,7 @@ void background(const char *file1 = "../data/empty_target/prad_24386.filtered.ro
         }
     }
 
-    // Draw: one canvas row per config
+    // Draw: overview canvases — one per config
     for (int c = 0; c < nCfg; c++) {
         TString tag = Form("_c%d", c);
         TString lbl = (nCfg > 1) ? Form(" [%s]", label[c]) : "";
@@ -191,12 +191,31 @@ void background(const char *file1 = "../data/empty_target/prad_24386.filtered.ro
         cv1->cd(5); hits_moller  [c]->Draw("COLZ");
         cv1->cd(6); E_angle_moller[c]->Draw("COLZ");
         cv1->SaveAs(Form("background_overview_c%d.png", c));
+    }
 
-        TCanvas *cv2 = new TCanvas("c_yield"+tag, "e-p and Moller Yield"+lbl, 1200, 400);
+    // Draw: yield histograms — overlay both configs on the same canvas
+    const int cfg_color[2] = {kBlue, kRed};
+    {
+        TCanvas *cv2 = new TCanvas("c_yield", "e-p and Moller Yield", 1200, 400);
         cv2->Divide(3, 1);
-        cv2->cd(1); mott_yield  [c]->Draw("HIST");
-        cv2->cd(2); moller_yield[c]->Draw("HIST");
-        cv2->cd(3); yield_ratio [c]->Draw("HIST");
-        cv2->SaveAs(Form("background_yield_c%d.png", c));
+
+        const char *hist_titles[3] = {"e-p Yield", "2 arm Moller Yield", "e-p/Moller Yield Ratio"};
+        for (int pad = 0; pad < 3; pad++) {
+            cv2->cd(pad + 1);
+            TH1F *h[2] = { (pad==0 ? mott_yield[0] : (pad==1 ? moller_yield[0] : yield_ratio[0])),
+                           (pad==0 ? mott_yield[1] : (pad==1 ? moller_yield[1] : yield_ratio[1])) };
+            for (int c = 0; c < nCfg; c++) {
+                h[c]->SetLineColor(cfg_color[c]);
+                h[c]->SetLineWidth(2);
+                h[c]->Draw(c == 0 ? "HIST" : "HIST SAME");
+            }
+            if (nCfg > 1 && pad == 0) {
+                TLegend *leg = new TLegend(0.55, 0.72, 0.92, 0.90);
+                for (int c = 0; c < nCfg; c++)
+                    leg->AddEntry(h[c], label[c], "L");
+                leg->Draw();
+            }
+        }
+        cv2->SaveAs("background_yield.png");
     }
 }
