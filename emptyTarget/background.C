@@ -1,67 +1,30 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
 
-namespace fs = std::filesystem;
-
-static std::vector<std::string> collectRootFiles(const std::string &path);
-
-void background(){
-
+// ── Fill histograms for one input file ───────────────────────────────────
+static void fillHists(const TString &fname,
+                      TH2F *hit_all, TH2F *E_angle,
+                      TH2F *hits_mott, TH2F *hits_moller,
+                      TH2F *E_angle_mott, TH2F *E_angle_moller,
+                      TH1F *mott_yield, TH1F *moller_yield, TH1F *yield_ratio,
+                      float Ebeam)
+{
     float resolution = 0.026 * 1.5;
-    float Ebeam = 3488.43; // MeV
 
     TChain *tree = new TChain("recon");
-
-    // 从命令行参数中获取输入文件，例如: root -l background.C file1.root file2.root
-    bool files_added = false;
-    int argc = gApplication->Argc();
-    char **argv = gApplication->Argv();
-    for (int i = 1; i < argc; i++) {
-        TString arg(argv[i]);
-        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
-            tree->Add(arg);
-            std::cout << "Adding file: " << arg << std::endl;
-            files_added = true;
-        }
-    }
-    if (!files_added) {
-        tree->Add("../data/empty_target/prad_24386.filtered.root");
-        std::cout << "No input files specified, using default: ../data/empty_target/prad_24386.filtered.root" << std::endl;
-    }
+    tree->Add(fname);
+    std::cout << "Processing: " << fname << " (" << tree->GetEntries() << " entries)" << std::endl;
 
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
-    // output histograms
-        //overall distribution
-    TH2F *hit_all = new TH2F("hit_all", "Hit Position Distribution(all clusters);X (mm);Y (mm)", 600, -360, 360, 600, -360, 360);
-    TH2F *E_angle = new TH2F("E_angle", "E vs Scattering Angle;#Scattering Angle (deg);Energy (MeV)", 120, 0, 6, 5000, 0, 5000);
-        
-        //event selection
-    TH2F *hits_mott = new TH2F("hits_mott", "Hit Position Distribution (e-p);X (mm);Y (mm)", 600, -360, 360, 600, -360, 360);
-    TH2F *hits_moller = new TH2F("hits_moller", "Hit Position Distribution (2 arm Moller);X (mm);Y (mm)", 600, -360, 360, 600, -360, 360);
-    TH2F *E_angle_mott = new TH2F("E_angle_mott", "E vs Scattering Angle (e-p);#Scattering Angle (deg);Energy (MeV)", 120, 0, 6, 5000, 0, 5000);
-    TH2F *E_angle_moller = new TH2F("E_angle_moller", "E vs Scattering Angle (2 arm Moller);#Scattering Angle (deg);Energy (MeV)", 120, 0, 6, 5000, 0, 5000);
-    
-        //check matching quality
-    TH1D *match_deltaX = new TH1D("match_deltaX", "Delta X of Matched Hits;#DeltaX (mm);Energy (MeV)", 300, -15, 15);
-    TH1D *match_deltaY = new TH1D("match_deltaY", "Delta Y of Matched Hits;#DeltaY (mm);Energy (MeV)", 300, -15, 15);
-    
-        //mott and moller yield
-    TH1F *mott_yield = new TH1F("e-p_yield", "e-p Yield;Theta (deg);Yield(arbitrary units)", 60, 0, 6);
-    TH1F *moller_yield = new TH1F("moller_yield", "2 arm Moller Yield;Theta (deg);Yield(arbitrary units)", 60, 0, 6);
-    TH1F *yield_ratio = new TH1F("yield_ratio", "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio", 60, 0, 6);
-
     MollerData HC_moller_events;
 
-    // Loop over events and fill histograms
-    //two options:
-    //1. no matching, only use hycal data
-    //2. apply matching, and check matching quality, only fill the matching clusters in hist
     for (Long64_t i = 0; i < tree->GetEntries(); i++) {
-        cout << "Processing event " << i << " / " << tree->GetEntries() << "\r" << flush;
+        if (i % 10000 == 0)
+            std::cout << "  " << i << " / " << tree->GetEntries() << "\r" << std::flush;
         tree->GetEntry(i);
-        std::vector<HCHit> moller_Hits_candidate; // store potential Moller hits for this event
+        std::vector<HCHit> moller_Hits_candidate;
         for (int j = 0; j < ev.n_clusters; j++) {
             float x = ev.cl_x[j];
             float y = ev.cl_y[j];
@@ -72,8 +35,6 @@ void background(){
             if( fabs(x) < 20.25 * 2.5 && fabs(y) < 20.25 * 2.5 ) continue;
             if( fabs(x) > 20.25 * 16. || fabs(y) > 20.25 * 16. ) continue;
 
-            //if(theta < 0.6 || theta > 3.0) continue;
-
             hit_all->Fill(x, y);
             E_angle->Fill(theta, E);
 
@@ -83,14 +44,13 @@ void background(){
                 mott_yield->Fill(theta);
             }
 
-            if (E > 150. && E < Ebeam - resolution * Ebeam / sqrt(Ebeam/1000.)) 
-                moller_Hits_candidate.emplace_back(x, y, z, E);           
+            if (E > 150. && E < Ebeam - resolution * Ebeam / sqrt(Ebeam/1000.))
+                moller_Hits_candidate.emplace_back(x, y, z, E);
         }
-        // Sort by energy descending (highest first)
+
         std::sort(moller_Hits_candidate.begin(), moller_Hits_candidate.end(),
                   [](const HCHit &a, const HCHit &b){ return a.energy > b.energy; });
 
-        // Find all Moller pairs: outer loop from highest energy, inner from lowest
         MollerData mollerData_event;
         int nCand = moller_Hits_candidate.size();
         for (int ii = 0; ii < nCand; ++ii) {
@@ -99,8 +59,7 @@ void background(){
             for (int jj = nCand - 1; jj > ii; --jj) {
                 const HCHit &hj = moller_Hits_candidate[jj];
                 float theta_j = atan2(std::sqrt(hj.x*hj.x + hj.y*hj.y), hj.z) * 180.f / M_PI;
-                if (isMoller_kinematic(theta_i, hi.energy, theta_j, hj.energy, Ebeam, resolution)) { 
-                    // Require back-to-back in phi within 10 degrees
+                if (isMoller_kinematic(theta_i, hi.energy, theta_j, hj.energy, Ebeam, resolution)) {
                     MollerEvent candidate = {DataPoint(hi.x, hi.y, hi.z, hi.energy), DataPoint(hj.x, hj.y, hj.z, hj.energy)};
                     if(fabs(GetMollerPhiDiff(candidate)) > 10.f) continue;
                     mollerData_event.emplace_back(candidate);
@@ -111,7 +70,6 @@ void background(){
         if(mollerData_event.size() == 0) continue;
 
         if(mollerData_event.size() > 1) {
-            // Keep the pair with smallest total transverse momentum magnitude
             auto getPt = [](const MollerEvent &mev) -> float {
                 float sin_t1 = sqrt(mev.first.x*mev.first.x + mev.first.y*mev.first.y) / mev.first.z;
                 float sin_t2 = sqrt(mev.second.x*mev.second.x + mev.second.y*mev.second.y) / mev.second.z;
@@ -124,7 +82,6 @@ void background(){
             mollerData_event.push_back(bestPair);
         }
 
-        // Fill Moller histograms from found pairs
         const MollerEvent &mev = mollerData_event.front();
         HC_moller_events.push_back(mev);
         float t1 = atan2(std::sqrt(mev.first.x*mev.first.x   + mev.first.y*mev.first.y),   mev.first.z)  * 180.f / M_PI;
@@ -136,49 +93,87 @@ void background(){
         moller_yield->Fill(t1);
         moller_yield->Fill(t2);
     }
-    cout << "Event processing completed. Total Moller candidates found: " << HC_moller_events.size() << endl;
+    std::cout << std::endl;
+    std::cout << "  Total Moller candidates: " << HC_moller_events.size() << std::endl;
 
-    for(int i = 1; i < moller_yield->GetNbinsX(); i++){
-        double mott = mott_yield->GetBinContent(i);
+    for(int i = 1; i <= moller_yield->GetNbinsX(); i++){
+        double mott   = mott_yield->GetBinContent(i);
         double moller = moller_yield->GetBinContent(i);
-        if(moller > 0) yield_ratio->SetBinContent(i, mott / moller);
-        else yield_ratio->SetBinContent(i, 0);
+        yield_ratio->SetBinContent(i, (moller > 0) ? mott / moller : 0.);
     }
 
-    //Draw histograms
-    TCanvas *c = new TCanvas("c", "Background Analysis", 1200, 800);
-    c->Divide(3, 2);
-    c->cd(1); hit_all->Draw("COLZ");
-    c->cd(2); E_angle->Draw("COLZ");
-    c->cd(3); hits_mott->Draw("COLZ");
-    c->cd(4); E_angle_mott->Draw("COLZ");
-    c->cd(5); hits_moller->Draw("COLZ");
-    c->cd(6); E_angle_moller->Draw("COLZ");
-    c->SaveAs("background_overview.png");
-
-    TCanvas *c2 = new TCanvas("c2", "e-p and Moller Yield", 1200, 800);
-    c2->Divide(3, 1);
-    c2->cd(1); mott_yield->Draw("HIST");
-    c2->cd(2); moller_yield->Draw("HIST");
-    c2->cd(3); yield_ratio->Draw("HIST");
-
-    c2->SaveAs("background_yield.png");
+    delete tree;
 }
 
+// ── Main function ─────────────────────────────────────────────────────────
+void background(){
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-static std::vector<std::string> collectRootFiles(const std::string &path)
-{
-    std::vector<std::string> files;
-    if (fs::is_directory(path)) {
-        for (auto &entry : fs::directory_iterator(path)) {
-            if (entry.is_regular_file() &&
-                entry.path().filename().string().find(".root") != std::string::npos)
-                files.push_back(entry.path().string());
-        }
-        std::sort(files.begin(), files.end());
-    } else {
-        files.push_back(path);
+    float Ebeam = 3488.43f; // MeV
+
+    // Parse command-line arguments: up to 2 .root files
+    // Usage: root -l background.C file1.root [file2.root]
+    TString cfg_file[2];
+    int nCfg = 0;
+    int argc = gApplication->Argc();
+    char **argv = gApplication->Argv();
+    for (int i = 1; i < argc && nCfg < 2; i++) {
+        TString arg(argv[i]);
+        if (arg.EndsWith(".root") && !arg.BeginsWith("-"))
+            cfg_file[nCfg++] = arg;
     }
-    return files;
+    if (nCfg == 0) {
+        cfg_file[0] = "../data/empty_target/prad_24386.filtered.root";
+        nCfg = 1;
+        std::cout << "No input files specified, using default: " << cfg_file[0] << std::endl;
+    }
+
+    const char *label[2] = {"Config1", "Config2"};
+
+    // Allocate histograms for each config
+    TH2F *hit_all      [2], *E_angle      [2];
+    TH2F *hits_mott    [2], *hits_moller  [2];
+    TH2F *E_angle_mott [2], *E_angle_moller[2];
+    TH1F *mott_yield   [2], *moller_yield [2], *yield_ratio[2];
+
+    for (int c = 0; c < nCfg; c++) {
+        TString t = Form("_c%d", c);
+        hit_all      [c] = new TH2F("hit_all"+t,       "Hit Position Distribution(all clusters);X (mm);Y (mm)",                   600, -360, 360, 600, -360, 360);
+        E_angle      [c] = new TH2F("E_angle"+t,       "E vs Scattering Angle;Scattering Angle (deg);Energy (MeV)",               120, 0, 6, 5000, 0, 5000);
+        hits_mott    [c] = new TH2F("hits_mott"+t,     "Hit Position Distribution (e-p);X (mm);Y (mm)",                          600, -360, 360, 600, -360, 360);
+        hits_moller  [c] = new TH2F("hits_moller"+t,   "Hit Position Distribution (2 arm Moller);X (mm);Y (mm)",                 600, -360, 360, 600, -360, 360);
+        E_angle_mott [c] = new TH2F("E_angle_mott"+t,  "E vs Scattering Angle (e-p);Scattering Angle (deg);Energy (MeV)",        120, 0, 6, 5000, 0, 5000);
+        E_angle_moller[c]= new TH2F("E_angle_moller"+t,"E vs Scattering Angle (2 arm Moller);Scattering Angle (deg);Energy (MeV)",120, 0, 6, 5000, 0, 5000);
+        mott_yield   [c] = new TH1F("mott_yield"+t,    "e-p Yield;Theta (deg);Yield(arbitrary units)",    60, 0, 6);
+        moller_yield [c] = new TH1F("moller_yield"+t,  "2 arm Moller Yield;Theta (deg);Yield(arbitrary units)", 60, 0, 6);
+        yield_ratio  [c] = new TH1F("yield_ratio"+t,   "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio",  60, 0, 6);
+    }
+
+    // Fill histograms
+    for (int c = 0; c < nCfg; c++)
+        fillHists(cfg_file[c], hit_all[c], E_angle[c], hits_mott[c], hits_moller[c],
+                  E_angle_mott[c], E_angle_moller[c],
+                  mott_yield[c], moller_yield[c], yield_ratio[c], Ebeam);
+
+    // Draw: one canvas row per config
+    for (int c = 0; c < nCfg; c++) {
+        TString tag = Form("_c%d", c);
+        TString lbl = (nCfg > 1) ? Form(" [%s]", label[c]) : "";
+
+        TCanvas *cv1 = new TCanvas("c_overview"+tag, "Background Analysis"+lbl, 1200, 800);
+        cv1->Divide(3, 2);
+        cv1->cd(1); hit_all      [c]->Draw("COLZ");
+        cv1->cd(2); E_angle      [c]->Draw("COLZ");
+        cv1->cd(3); hits_mott    [c]->Draw("COLZ");
+        cv1->cd(4); E_angle_mott [c]->Draw("COLZ");
+        cv1->cd(5); hits_moller  [c]->Draw("COLZ");
+        cv1->cd(6); E_angle_moller[c]->Draw("COLZ");
+        cv1->SaveAs(Form("background_overview_c%d.png", c));
+
+        TCanvas *cv2 = new TCanvas("c_yield"+tag, "e-p and Moller Yield"+lbl, 1200, 400);
+        cv2->Divide(3, 1);
+        cv2->cd(1); mott_yield  [c]->Draw("HIST");
+        cv2->cd(2); moller_yield[c]->Draw("HIST");
+        cv2->cd(3); yield_ratio [c]->Draw("HIST");
+        cv2->SaveAs(Form("background_yield_c%d.png", c));
+    }
 }
