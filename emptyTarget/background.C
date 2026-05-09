@@ -106,41 +106,22 @@ static void fillHists(const TString &fname,
 }
 
 // ── Main function ─────────────────────────────────────────────────────────
-void background(){
-
+// Usage:
+//   root -l background.C                                          (default file)
+//   root -l 'background.C("file1.root")'
+//   root -l 'background.C("file1.root", 1234)'
+//   root -l 'background.C("file1.root", 1234, "file2.root", 5678)'
+void background(const char *file1 = "../data/empty_target/prad_24386.filtered.root",
+                double lc1 = 1.0,
+                const char *file2 = "",
+                double lc2 = 1.0)
+{
     float Ebeam = 3488.43f; // MeV
 
-    // Parse command-line arguments: up to 2 .root files, each optionally followed by its livecharge
-    // Usage: root -l background.C file1.root livecharge1 [file2.root livecharge2]
-    TString cfg_file[2];
-    double livecharge[2] = {1.0, 1.0};
-    int nCfg = 0;
-    int argc = gApplication->Argc();
-    char **argv = gApplication->Argv();
-    for (int i = 1; i < argc && nCfg < 2; i++) {
-        TString arg(argv[i]);
-        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
-            cfg_file[nCfg] = arg;
-            // check if next arg is a numeric livecharge
-            if (i + 1 < argc) {
-                TString next(argv[i+1]);
-                if (!next.EndsWith(".root") && !next.BeginsWith("-")) {
-                    char *end;
-                    double val = strtod(next.Data(), &end);
-                    if (end != next.Data() && val > 0) {
-                        livecharge[nCfg] = val;
-                        i++; // skip livecharge arg
-                    }
-                }
-            }
-            nCfg++;
-        }
-    }
-    if (nCfg == 0) {
-        cfg_file[0] = "../data/empty_target/prad_24386.filtered.root";
-        nCfg = 1;
-        std::cout << "No input files specified, using default: " << cfg_file[0] << std::endl;
-    }
+    TString cfg_file[2]  = { file1, file2 };
+    double  livecharge[2]= { lc1,   lc2   };
+    int nCfg = (TString(file2) == "") ? 1 : 2;
+
     for (int c = 0; c < nCfg; c++)
         std::cout << "Config" << c << ": " << cfg_file[c] << "  livecharge=" << livecharge[c] << std::endl;
 
