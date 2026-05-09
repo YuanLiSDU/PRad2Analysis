@@ -110,24 +110,41 @@ void background(){
 
     float Ebeam = 3488.43f; // MeV
 
-    // Parse command-line arguments: up to 2 .root files
-    // Usage: root -l background.C file1.root [file2.root]
+    // Parse command-line arguments: up to 2 .root files, each optionally followed by its livecharge
+    // Usage: root -l background.C file1.root livecharge1 [file2.root livecharge2]
     TString cfg_file[2];
+    double livecharge[2] = {1.0, 1.0};
     int nCfg = 0;
     int argc = gApplication->Argc();
     char **argv = gApplication->Argv();
     for (int i = 1; i < argc && nCfg < 2; i++) {
         TString arg(argv[i]);
-        if (arg.EndsWith(".root") && !arg.BeginsWith("-"))
-            cfg_file[nCfg++] = arg;
+        if (arg.EndsWith(".root") && !arg.BeginsWith("-")) {
+            cfg_file[nCfg] = arg;
+            // check if next arg is a numeric livecharge
+            if (i + 1 < argc) {
+                TString next(argv[i+1]);
+                if (!next.EndsWith(".root") && !next.BeginsWith("-")) {
+                    char *end;
+                    double val = strtod(next.Data(), &end);
+                    if (end != next.Data() && val > 0) {
+                        livecharge[nCfg] = val;
+                        i++; // skip livecharge arg
+                    }
+                }
+            }
+            nCfg++;
+        }
     }
     if (nCfg == 0) {
         cfg_file[0] = "../data/empty_target/prad_24386.filtered.root";
         nCfg = 1;
         std::cout << "No input files specified, using default: " << cfg_file[0] << std::endl;
     }
+    for (int c = 0; c < nCfg; c++)
+        std::cout << "Config" << c << ": " << cfg_file[c] << "  livecharge=" << livecharge[c] << std::endl;
 
-    const char *label[2] = {"Config1", "Config2"};
+    const char *label[2] = {"type A", "type B"};
 
     // Allocate histograms for each config
     TH2F *hit_all      [2], *E_angle      [2];
@@ -146,13 +163,38 @@ void background(){
         mott_yield   [c] = new TH1F("mott_yield"+t,    "e-p Yield;Theta (deg);Yield(arbitrary units)",    60, 0, 6);
         moller_yield [c] = new TH1F("moller_yield"+t,  "2 arm Moller Yield;Theta (deg);Yield(arbitrary units)", 60, 0, 6);
         yield_ratio  [c] = new TH1F("yield_ratio"+t,   "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio",  60, 0, 6);
+        // prepend label to all histogram titles
+        TString lbl = Form("[%s] ", label[c]);
+        hit_all      [c]->SetTitle(lbl + hit_all      [c]->GetTitle());
+        E_angle      [c]->SetTitle(lbl + E_angle      [c]->GetTitle());
+        hits_mott    [c]->SetTitle(lbl + hits_mott    [c]->GetTitle());
+        hits_moller  [c]->SetTitle(lbl + hits_moller  [c]->GetTitle());
+        E_angle_mott [c]->SetTitle(lbl + E_angle_mott [c]->GetTitle());
+        E_angle_moller[c]->SetTitle(lbl + E_angle_moller[c]->GetTitle());
+        mott_yield   [c]->SetTitle(lbl + mott_yield   [c]->GetTitle());
+        moller_yield [c]->SetTitle(lbl + moller_yield [c]->GetTitle());
+        yield_ratio  [c]->SetTitle(lbl + yield_ratio  [c]->GetTitle());
     }
 
     // Fill histograms
-    for (int c = 0; c < nCfg; c++)
+    for (int c = 0; c < nCfg; c++) {
         fillHists(cfg_file[c], hit_all[c], E_angle[c], hits_mott[c], hits_moller[c],
                   E_angle_mott[c], E_angle_moller[c],
                   mott_yield[c], moller_yield[c], yield_ratio[c], Ebeam);
+        // scale yields by 1/livecharge so y-axis is yield per unit charge
+        if (livecharge[c] != 1.0) {
+            mott_yield  [c]->Scale(1.0 / livecharge[c]);
+            moller_yield[c]->Scale(1.0 / livecharge[c]);
+            // recompute ratio from scaled yields
+            for (int i = 1; i <= yield_ratio[c]->GetNbinsX(); i++) {
+                double mott   = mott_yield  [c]->GetBinContent(i);
+                double moller = moller_yield[c]->GetBinContent(i);
+                yield_ratio[c]->SetBinContent(i, (moller > 0) ? mott / moller : 0.);
+            }
+            mott_yield  [c]->GetYaxis()->SetTitle("Yield / livecharge");
+            moller_yield[c]->GetYaxis()->SetTitle("Yield / livecharge");
+        }
+    }
 
     // Draw: one canvas row per config
     for (int c = 0; c < nCfg; c++) {
