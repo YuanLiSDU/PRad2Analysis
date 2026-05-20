@@ -24,7 +24,7 @@ struct RawEventData {
     // HyCal per-channel data
     int          nch = 0;
     uint16_t     module_id[kMaxChannels] = {};
-    int nsamples[kMaxChannels] = {};
+    uint8_t nsamples[kMaxChannels] = {};
     uint16_t     samples[kMaxChannels][MAX_SAMPLES] = {};
     float   ped_mean[kMaxChannels] = {};
     float   ped_rms[kMaxChannels]  = {};
@@ -50,7 +50,7 @@ struct RawEventData {
     float   lms_integral[4] = {};
 
     // Optional peak data
-    int npeaks[kMaxChannels] = {};
+    uint8_t npeaks[kMaxChannels] = {};
     float   peak_height[kMaxChannels][MAX_PEAKS]   = {};
     float   peak_time[kMaxChannels][MAX_PEAKS]     = {};
     float   peak_integral[kMaxChannels][MAX_PEAKS] = {};
@@ -191,4 +191,24 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("gem_y_size",   ev.gem_y_size);
     tree->SetBranchAddress("gem_x_mTbin",   ev.gem_x_mTbin);
     tree->SetBranchAddress("gem_y_mTbin",   ev.gem_y_mTbin);
+};
+
+void setupRawBranches(TTree *tree, RawEventData &ev){
+    tree->SetBranchAddress("event_num",    &ev.event_num);
+    tree->SetBranchAddress("trigger_type", &ev.trigger_type);
+    tree->SetBranchAddress("trigger_bits", &ev.trigger_bits);
+    tree->SetBranchAddress("timestamp",    &ev.timestamp);
+    // HyCal per-channel branches
+    tree->SetBranchAddress("hycal.nch",          &ev.nch);
+    tree->SetBranchAddress("hycal.module_id",    ev.module_id);
+    tree->SetBranchAddress("hycal.nsamples",     ev.nsamples);
+    tree->SetBranchAddress("hycal.samples",      ev.samples);
+    tree->SetBranchAddress("hycal.ped_mean",     ev.ped_mean);
+    tree->SetBranchAddress("hycal.ped_rms",      ev.ped_rms);
+    tree->SetBranchAddress("hycal.gain_factor",  ev.gain_factor);
+    // HyCal peak branches
+    tree->SetBranchAddress("hycal.npeaks",         ev.npeaks);
+    tree->SetBranchAddress("hycal.peak_height",    ev.peak_height);
+    tree->SetBranchAddress("hycal.peak_time",      ev.peak_time);
+    tree->SetBranchAddress("hycal.peak_integral",  ev.peak_integral);
 };
