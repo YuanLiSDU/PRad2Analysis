@@ -95,7 +95,7 @@ void compare_types(
         mott_ratio[i]->SetMarkerStyle(20 + i);
         mott_ratio[i]->SetLineWidth(2);
         if (i == 0) {
-            mott_ratio[i]->GetYaxis()->SetRangeUser(mott_lo, mott_hi);
+            mott_ratio[i]->GetYaxis()->SetRangeUser(0., mott_hi);
             mott_ratio[i]->Draw("E");
         } else {
             mott_ratio[i]->Draw("E SAME");
@@ -109,8 +109,10 @@ void compare_types(
     for (int i = 0; i < 3; i++) leg1->AddEntry(mott_ratio[i], ratio_label[i], "PE");
     leg1->Draw();
 
-    // --- Moller ---
+    // --- Moller (double-arm range: 1.6 -- 3.0 deg) ---
     cv->cd(2);
+    for (int i = 0; i < 3; i++)
+        moller_ratio[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
     auto [mol_lo, mol_hi] = yRange(moller_ratio, 3);
     for (int i = 0; i < 3; i++) {
         moller_ratio[i]->SetLineColor(cfg_color[i]);
@@ -118,7 +120,7 @@ void compare_types(
         moller_ratio[i]->SetMarkerStyle(20 + i);
         moller_ratio[i]->SetLineWidth(2);
         if (i == 0) {
-            moller_ratio[i]->GetYaxis()->SetRangeUser(mol_lo, mol_hi);
+            moller_ratio[i]->GetYaxis()->SetRangeUser(0., mol_hi);
             moller_ratio[i]->Draw("E");
         } else {
             moller_ratio[i]->Draw("E SAME");
@@ -144,4 +146,6 @@ void compare_types(
     cv->Write();
     fout->Close();
     std::cout << "Saved to compare_types_output.root" << std::endl;
+
+    
 }
