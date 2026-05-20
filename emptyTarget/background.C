@@ -10,7 +10,7 @@ static void fillHists(const std::vector<TString> &fnames,
                       TH1F *moller_center_x, TH1F *moller_center_y, TH1F *moller_vertex_z,
                       float Ebeam)
 {
-    float resolution = 0.026 * 1.5;
+    float resolution = 0.037f;
 
     TChain *tree = new TChain("recon");
     for (const auto &fname : fnames)
@@ -46,7 +46,7 @@ static void fillHists(const std::vector<TString> &fnames,
                 mott_yield->Fill(theta);
             }
 
-            if (E > 150. && E < Ebeam - resolution * Ebeam / sqrt(Ebeam/1000.))
+            if (E > 80. && E < Ebeam - resolution * Ebeam / sqrt(Ebeam/1000.))
                 moller_Hits_candidate.emplace_back(x, y, z, E);
         }
 
@@ -125,7 +125,7 @@ static void fillHists(const std::vector<TString> &fnames,
 void background(const char *files = "../data/empty_target/prad_24386.filtered.root",
                 double lc = 1.0)
 {
-    float Ebeam = 3488.43f; // MeV
+    float Ebeam = 728.9f; // MeV
 
     // Parse comma-separated file list
     std::vector<TString> fileList;

@@ -1,0 +1,147 @@
+// compare_types.C
+// Read background_output.root from four run types, compute C/(A-B) and D/(A-B)
+// ratios for mott_yield and moller_yield, and overlay them on one canvas.
+//
+// Usage:
+//   root -l 'emptyTarget/compare_types.C'
+//   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
+
+void compare_types(
+    const char *fileA = "../data/0.7GeV/typeA_24653.root",
+    const char *fileB = "../data/0.7GeV/typeB.root",
+    const char *fileC = "../data/0.7GeV/typeC.root",
+    const char *fileD = "../data/0.7GeV/typeD.root")
+{
+    // ── Open files and clone histograms ──────────────────────────────────
+    const char *paths[4] = { fileA, fileB, fileC, fileD };
+    const char *labels[4] = { "A", "B", "C", "D" };
+
+    TH1F *mott  [4];
+    TH1F *moller[4];
+
+    for (int i = 0; i < 4; i++) {
+        TFile *f = TFile::Open(paths[i]);
+        if (!f || f->IsZombie()) {
+            std::cerr << "Cannot open " << paths[i] << std::endl;
+            return;
+        }
+        mott  [i] = (TH1F*)f->Get("mott_yield");
+        moller[i] = (TH1F*)f->Get("moller_yield");
+        if (!mott[i] || !moller[i]) {
+            std::cerr << "mott_yield or moller_yield not found in " << paths[i] << std::endl;
+            return;
+        }
+        mott  [i] = (TH1F*)mott  [i]->Clone(Form("mott_%s",   labels[i]));
+        moller[i] = (TH1F*)moller[i]->Clone(Form("moller_%s", labels[i]));
+        mott  [i]->SetDirectory(nullptr);
+        moller[i]->SetDirectory(nullptr);
+        f->Close();
+        std::cout << "Loaded " << paths[i] << std::endl;
+    }
+
+    // ── Compute denominator: A - B ───────────────────────────────────────
+    TH1F *mott_denom   = (TH1F*)mott  [0]->Clone("mott_denom");
+    TH1F *moller_denom = (TH1F*)moller[0]->Clone("moller_denom");
+    mott_denom  ->Add(mott  [1], -1.);
+    moller_denom->Add(moller[1], -1.);
+
+    // ── Compute ratios X/(A-B)  (X = C, D) ──────────────────────────────
+    // Divide() propagates errors as: e_ratio = ratio * sqrt((eN/N)^2 + (eD/D)^2)
+    const int cfg_color[3] = { kRed, kGreen+2, kViolet };
+    const char *ratio_label[3] = { "B/(A-B)", "C/(A-B)", "D/(A-B)" };
+    // numerator indices in mott[]/moller[]: B=1, C=2, D=3
+    const int num_idx[3] = { 1, 2, 3 };
+
+    TH1F *mott_ratio  [3];
+    TH1F *moller_ratio[3];
+
+    for (int i = 0; i < 3; i++) {
+        mott_ratio[i]   = (TH1F*)mott  [num_idx[i]]->Clone(Form("mott_ratio_%s",   ratio_label[i]));
+        moller_ratio[i] = (TH1F*)moller[num_idx[i]]->Clone(Form("moller_ratio_%s", ratio_label[i]));
+        mott_ratio  [i]->Divide(mott  [num_idx[i]], mott_denom,   1., 1., "");
+        moller_ratio[i]->Divide(moller[num_idx[i]], moller_denom, 1., 1., "");
+        mott_ratio  [i]->SetTitle("Mott Yield Ratio X/(A-B);#theta (deg);Ratio");
+        moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B);#theta (deg);Ratio");
+    }
+
+    // ── Draw ─────────────────────────────────────────────────────────────
+    gStyle->SetOptStat(0);
+
+    TCanvas *cv = new TCanvas("c_compare", "Type Comparison", 1200, 500);
+    cv->Divide(2, 1);
+
+    // Helper to find global y-range across three histograms
+    auto yRange = [](TH1F **h, int n, double margin = 0.2) -> std::pair<double,double> {
+        double lo = 1e9, hi = -1e9;
+        for (int i = 0; i < n; i++) {
+            for (int b = 1; b <= h[i]->GetNbinsX(); b++) {
+                double v = h[i]->GetBinContent(b);
+                double e = h[i]->GetBinError(b);
+                if (v == 0.) continue;
+                lo = std::min(lo, v - e);
+                hi = std::max(hi, v + e);
+            }
+        }
+        double span = hi - lo;
+        return { lo - margin * span, hi + margin * span };
+    };
+
+    // --- Mott ---
+    cv->cd(1);
+    auto [mott_lo, mott_hi] = yRange(mott_ratio, 3);
+    for (int i = 0; i < 3; i++) {
+        mott_ratio[i]->SetLineColor(cfg_color[i]);
+        mott_ratio[i]->SetMarkerColor(cfg_color[i]);
+        mott_ratio[i]->SetMarkerStyle(20 + i);
+        mott_ratio[i]->SetLineWidth(2);
+        if (i == 0) {
+            mott_ratio[i]->GetYaxis()->SetRangeUser(mott_lo, mott_hi);
+            mott_ratio[i]->Draw("E");
+        } else {
+            mott_ratio[i]->Draw("E SAME");
+        }
+    }
+    // Reference line at 1
+    TLine *line_mott = new TLine(mott_ratio[0]->GetXaxis()->GetXmin(), 1.,
+                                  mott_ratio[0]->GetXaxis()->GetXmax(), 1.);
+    line_mott->SetLineStyle(2); line_mott->SetLineColor(kGray+1); line_mott->Draw();
+    TLegend *leg1 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 3; i++) leg1->AddEntry(mott_ratio[i], ratio_label[i], "PE");
+    leg1->Draw();
+
+    // --- Moller ---
+    cv->cd(2);
+    auto [mol_lo, mol_hi] = yRange(moller_ratio, 3);
+    for (int i = 0; i < 3; i++) {
+        moller_ratio[i]->SetLineColor(cfg_color[i]);
+        moller_ratio[i]->SetMarkerColor(cfg_color[i]);
+        moller_ratio[i]->SetMarkerStyle(20 + i);
+        moller_ratio[i]->SetLineWidth(2);
+        if (i == 0) {
+            moller_ratio[i]->GetYaxis()->SetRangeUser(mol_lo, mol_hi);
+            moller_ratio[i]->Draw("E");
+        } else {
+            moller_ratio[i]->Draw("E SAME");
+        }
+    }
+    TLine *line_mol = new TLine(moller_ratio[0]->GetXaxis()->GetXmin(), 1.,
+                                 moller_ratio[0]->GetXaxis()->GetXmax(), 1.);
+    line_mol->SetLineStyle(2); line_mol->SetLineColor(kGray+1); line_mol->Draw();
+    TLegend *leg2 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 3; i++) leg2->AddEntry(moller_ratio[i], ratio_label[i], "PE");
+    leg2->Draw();
+
+    cv->SaveAs("compare_types.png");
+
+    // ── Save to ROOT file ─────────────────────────────────────────────────
+    TFile *fout = TFile::Open("compare_types_output.root", "RECREATE");
+    mott_denom  ->Write();
+    moller_denom->Write();
+    for (int i = 0; i < 3; i++) {
+        mott_ratio  [i]->Write();
+        moller_ratio[i]->Write();
+    }
+    cv->Write();
+    fout->Close();
+    std::cout << "Saved to compare_types_output.root" << std::endl;
+}

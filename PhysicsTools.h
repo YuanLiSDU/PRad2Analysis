@@ -134,9 +134,9 @@ bool isMoller_kinematic(float theta1, float energy1, float theta2, float energy2
 
     if(fabs(energy1 + energy2 - EBeam) < 4.f * sigma_percent * EBeam / sqrt(EBeam/1000.f)) 
         E_sum = true;
-    if(fabs(energy1 - expectE1) < 5.f * expectE1 * sigma_percent / sqrt(expectE1/1000.f)) 
+    if(fabs(energy1 - expectE1) < 3.f * expectE1 * sigma_percent / sqrt(expectE1/1000.f)) 
         E1_ok = true;
-    if(fabs(energy2 - expectE2) < 5.f * expectE2 * sigma_percent / sqrt(expectE2/1000.f)) 
+    if(fabs(energy2 - expectE2) < 3.f * expectE2 * sigma_percent / sqrt(expectE2/1000.f)) 
         E2_ok = true;
 
     return E_sum && E1_ok && E2_ok;
