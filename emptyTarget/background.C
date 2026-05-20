@@ -37,6 +37,8 @@ static void fillHists(const std::vector<TString> &fnames,
             if( fabs(x) < 20.25 * 2.5 && fabs(y) < 20.25 * 2.5 ) continue;
             if( fabs(x) > 20.25 * 16. || fabs(y) > 20.25 * 16. ) continue;
 
+            if( ev.cl_nblocks[j] <= 2 ) continue; // remove single-block clusters which are mostly noise
+
             hit_all->Fill(x, y);
             E_angle->Fill(theta, E);
 
