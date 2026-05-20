@@ -1,19 +1,21 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
 
-// ── Fill histograms for one input file ───────────────────────────────────
-static void fillHists(const TString &fname,
+// ── Fill histograms for one or more input files ───────────────────────────
+static void fillHists(const std::vector<TString> &fnames,
                       TH2F *hit_all, TH2F *E_angle,
                       TH2F *hits_mott, TH2F *hits_moller,
                       TH2F *E_angle_mott, TH2F *E_angle_moller,
                       TH1F *mott_yield, TH1F *moller_yield, TH1F *yield_ratio,
+                      TH1F *moller_center_x, TH1F *moller_center_y, TH1F *moller_vertex_z,
                       float Ebeam)
 {
     float resolution = 0.026 * 1.5;
 
     TChain *tree = new TChain("recon");
-    tree->Add(fname);
-    std::cout << "Processing: " << fname << " (" << tree->GetEntries() << " entries)" << std::endl;
+    for (const auto &fname : fnames)
+        tree->Add(fname);
+    std::cout << "Processing " << fnames.size() << " file(s), total entries: " << tree->GetEntries() << std::endl;
 
     ReconEventData ev;
     setupReconBranches(tree, ev);
@@ -94,12 +96,21 @@ static void fillHists(const TString &fname,
         moller_yield->Fill(t2);
     }
     std::cout << std::endl;
-    std::cout << "  Total Moller candidates: " << HC_moller_events.size() << std::endl;
+    std::cout << "  Total double arm Mollers : " << HC_moller_events.size() << std::endl;
 
     for(int i = 1; i <= moller_yield->GetNbinsX(); i++){
         double mott   = mott_yield->GetBinContent(i);
         double moller = moller_yield->GetBinContent(i);
         yield_ratio->SetBinContent(i, (moller > 0) ? mott / moller : 0.);
+    }
+    for(int i = 1; i <= HC_moller_events.size(); i++){
+        auto center = GetMollerCenter(HC_moller_events[i-1], HC_moller_events[i]);
+        moller_center_x->Fill(center[0]);
+        moller_center_y->Fill(center[1]);
+        float x1 = HC_moller_events[i-1].first.x, y1 = HC_moller_events[i-1].first.y, z1 = HC_moller_events[i-1].first.z;
+        float x2 = HC_moller_events[i-1].second.x, y2 = HC_moller_events[i-1].second.y, z2 = HC_moller_events[i-1].second.z;
+        float vertex = sqrt( (Ebeam + M_ELECTRON) * sqrt(x1*x1 + y1*y1) * sqrt(x2*x2 + y2*y2) / (2. * M_ELECTRON) );
+        moller_vertex_z->Fill(6270.f - vertex); // Subtract nominal target center to get vertex relative to target center
     }
 
     delete tree;
@@ -110,112 +121,116 @@ static void fillHists(const TString &fname,
 //   root -l background.C                                          (default file)
 //   root -l 'background.C("file1.root")'
 //   root -l 'background.C("file1.root", 1234)'
-//   root -l 'background.C("file1.root", 1234, "file2.root", 5678)'
-void background(const char *file1 = "../data/empty_target/prad_24386.filtered.root",
-                double lc1 = 1.0,
-                const char *file2 = "",
-                double lc2 = 1.0)
+//   root -l 'background.C("file1.root,file2.root,file3.root", 1234)'
+void background(const char *files = "../data/empty_target/prad_24386.filtered.root",
+                double lc = 1.0)
 {
     float Ebeam = 3488.43f; // MeV
 
-    TString cfg_file[2]  = { file1, file2 };
-    double  livecharge[2]= { lc1,   lc2   };
-    int nCfg = (TString(file2) == "") ? 1 : 2;
-
-    for (int c = 0; c < nCfg; c++)
-        std::cout << "Config" << c << ": " << cfg_file[c] << "  livecharge=" << livecharge[c] << std::endl;
-
-    const char *label[2] = {"type A", "type B"};
-
-    // Allocate histograms for each config
-    TH2F *hit_all      [2], *E_angle      [2];
-    TH2F *hits_mott    [2], *hits_moller  [2];
-    TH2F *E_angle_mott [2], *E_angle_moller[2];
-    TH1F *mott_yield   [2], *moller_yield [2], *yield_ratio[2];
-
-    for (int c = 0; c < nCfg; c++) {
-        TString t = Form("_c%d", c);
-        hit_all      [c] = new TH2F("hit_all"+t,       "Hit Position Distribution(all clusters);X (mm);Y (mm)",                   600, -360, 360, 600, -360, 360);
-        E_angle      [c] = new TH2F("E_angle"+t,       "E vs Scattering Angle;Scattering Angle (deg);Energy (MeV)",               120, 0, 6, 5000, 0, 5000);
-        hits_mott    [c] = new TH2F("hits_mott"+t,     "Hit Position Distribution (e-p);X (mm);Y (mm)",                          600, -360, 360, 600, -360, 360);
-        hits_moller  [c] = new TH2F("hits_moller"+t,   "Hit Position Distribution (2 arm Moller);X (mm);Y (mm)",                 600, -360, 360, 600, -360, 360);
-        E_angle_mott [c] = new TH2F("E_angle_mott"+t,  "E vs Scattering Angle (e-p);Scattering Angle (deg);Energy (MeV)",        120, 0, 6, 5000, 0, 5000);
-        E_angle_moller[c]= new TH2F("E_angle_moller"+t,"E vs Scattering Angle (2 arm Moller);Scattering Angle (deg);Energy (MeV)",120, 0, 6, 5000, 0, 5000);
-        mott_yield   [c] = new TH1F("mott_yield"+t,    "e-p Yield;Theta (deg);Yield(arbitrary units)",    60, 0, 6);
-        moller_yield [c] = new TH1F("moller_yield"+t,  "2 arm Moller Yield;Theta (deg);Yield(arbitrary units)", 60, 0, 6);
-        yield_ratio  [c] = new TH1F("yield_ratio"+t,   "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio",  60, 0, 6);
-        // prepend label to all histogram titles
-        TString lbl = Form("[%s] ", label[c]);
-        hit_all      [c]->SetTitle(lbl + hit_all      [c]->GetTitle());
-        E_angle      [c]->SetTitle(lbl + E_angle      [c]->GetTitle());
-        hits_mott    [c]->SetTitle(lbl + hits_mott    [c]->GetTitle());
-        hits_moller  [c]->SetTitle(lbl + hits_moller  [c]->GetTitle());
-        E_angle_mott [c]->SetTitle(lbl + E_angle_mott [c]->GetTitle());
-        E_angle_moller[c]->SetTitle(lbl + E_angle_moller[c]->GetTitle());
-        mott_yield   [c]->SetTitle(lbl + mott_yield   [c]->GetTitle());
-        moller_yield [c]->SetTitle(lbl + moller_yield [c]->GetTitle());
-        yield_ratio  [c]->SetTitle(lbl + yield_ratio  [c]->GetTitle());
+    // Parse comma-separated file list
+    std::vector<TString> fileList;
+    TString allFiles(files);
+    TObjArray *tokens = allFiles.Tokenize(",");
+    for (int i = 0; i < tokens->GetEntries(); i++) {
+        TString f = ((TObjString *)tokens->At(i))->GetString();
+        f.Strip(TString::kBoth);
+        if (!f.IsNull()) fileList.push_back(f);
     }
+    delete tokens;
+
+    std::cout << "Files (" << fileList.size() << "):" << std::endl;
+    for (const auto &f : fileList) std::cout << "  " << f << std::endl;
+    std::cout << "livecharge = " << lc << std::endl;
+
+    // Allocate histograms
+    TH2F *hit_all       = new TH2F("hit_all",        "Hit Position Distribution(all clusters);X (mm);Y (mm)",                    600, -360, 360, 600, -360, 360);
+    TH2F *E_angle       = new TH2F("E_angle",         "E vs Scattering Angle;Scattering Angle (deg);Energy (MeV)",                120, 0, 6, 5000, 0, 5000);
+    TH2F *hits_mott     = new TH2F("hits_mott",       "Hit Position Distribution (e-p);X (mm);Y (mm)",                           600, -360, 360, 600, -360, 360);
+    TH2F *hits_moller   = new TH2F("hits_moller",     "Hit Position Distribution (2 arm Moller);X (mm);Y (mm)",                  600, -360, 360, 600, -360, 360);
+    TH2F *E_angle_mott  = new TH2F("E_angle_mott",    "E vs Scattering Angle (e-p);Scattering Angle (deg);Energy (MeV)",         120, 0, 6, 5000, 0, 5000);
+    TH2F *E_angle_moller= new TH2F("E_angle_moller",  "E vs Scattering Angle (2 arm Moller);Scattering Angle (deg);Energy (MeV)",120, 0, 6, 5000, 0, 5000);
+    TH1F *mott_yield    = new TH1F("mott_yield",      "e-p Yield;Theta (deg);Yield(arbitrary units)",     60*2, 0, 6);
+    TH1F *moller_yield  = new TH1F("moller_yield",    "2 arm Moller Yield;Theta (deg);Yield(arbitrary units)",  60*2, 0, 6);
+    TH1F *yield_ratio   = new TH1F("yield_ratio",     "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio",   60*2, 0, 6);
+    TH1F *moller_center_x = new TH1F("moller_center",   "Moller Center X ; X(mm);Counts", 100, -10, 10);
+    TH1F *moller_center_y = new TH1F("moller_center_y", "Moller Center Y ; Y(mm);Counts", 100, -10, 10);
+    TH1F *moller_vertex_z = new TH1F("moller_vertex_z", "Moller Vertex Z ; Z(mm);Counts", 250*10, -4000, 6000);
 
     // Fill histograms
-    for (int c = 0; c < nCfg; c++) {
-        fillHists(cfg_file[c], hit_all[c], E_angle[c], hits_mott[c], hits_moller[c],
-                  E_angle_mott[c], E_angle_moller[c],
-                  mott_yield[c], moller_yield[c], yield_ratio[c], Ebeam);
-        // scale yields by 1/livecharge so y-axis is yield per unit charge
-        if (livecharge[c] != 1.0) {
-            mott_yield  [c]->Scale(1.0 / livecharge[c]);
-            moller_yield[c]->Scale(1.0 / livecharge[c]);
-            // recompute ratio from scaled yields
-            for (int i = 1; i <= yield_ratio[c]->GetNbinsX(); i++) {
-                double mott   = mott_yield  [c]->GetBinContent(i);
-                double moller = moller_yield[c]->GetBinContent(i);
-                yield_ratio[c]->SetBinContent(i, (moller > 0) ? mott / moller : 0.);
-            }
-            mott_yield  [c]->GetYaxis()->SetTitle("Yield / livecharge");
-            moller_yield[c]->GetYaxis()->SetTitle("Yield / livecharge");
+    fillHists(fileList, hit_all, E_angle, hits_mott, hits_moller,
+              E_angle_mott, E_angle_moller,
+              mott_yield, moller_yield, yield_ratio,
+              moller_center_x, moller_center_y, moller_vertex_z,
+              Ebeam);
+
+    // Scale yields by 1/livecharge so y-axis is yield per unit charge
+    if (lc != 1.0) {
+        mott_yield  ->Scale(1.0 / lc);
+        moller_yield->Scale(1.0 / lc);
+        // Scale() already propagates bin errors correctly (sigma = sqrt(N)/lc).
+        // No manual SetBinError needed.
+
+        // recompute ratio from scaled yields
+        for (int i = 1; i <= yield_ratio->GetNbinsX(); i++) {
+            double mott   = mott_yield  ->GetBinContent(i);
+            double moller = moller_yield->GetBinContent(i);
+            yield_ratio->SetBinContent(i, (moller > 0) ? mott / moller : 0.);
         }
+        mott_yield  ->GetYaxis()->SetTitle("Yield / livecharge");
+        moller_yield->GetYaxis()->SetTitle("Yield / livecharge");
     }
 
-    // Draw: overview canvases — one per config
-    for (int c = 0; c < nCfg; c++) {
-        TString tag = Form("_c%d", c);
-        TString lbl = (nCfg > 1) ? Form(" [%s]", label[c]) : "";
+    // Draw: overview canvas
+    TCanvas *cv1 = new TCanvas("c_overview", "Background Analysis", 1200, 800);
+    cv1->Divide(3, 2);
+    cv1->cd(1); hit_all      ->Draw("COLZ");
+    cv1->cd(2); E_angle      ->Draw("COLZ");
+    cv1->cd(3); hits_mott    ->Draw("COLZ");
+    cv1->cd(4); E_angle_mott ->Draw("COLZ");
+    cv1->cd(5); hits_moller  ->Draw("COLZ");
+    cv1->cd(6); E_angle_moller->Draw("COLZ");
+    cv1->SaveAs("background_overview.png");
 
-        TCanvas *cv1 = new TCanvas("c_overview"+tag, "Background Analysis"+lbl, 1200, 800);
-        cv1->Divide(3, 2);
-        cv1->cd(1); hit_all      [c]->Draw("COLZ");
-        cv1->cd(2); E_angle      [c]->Draw("COLZ");
-        cv1->cd(3); hits_mott    [c]->Draw("COLZ");
-        cv1->cd(4); E_angle_mott [c]->Draw("COLZ");
-        cv1->cd(5); hits_moller  [c]->Draw("COLZ");
-        cv1->cd(6); E_angle_moller[c]->Draw("COLZ");
-        cv1->SaveAs(Form("background_overview_c%d.png", c));
-    }
+    // Draw: yield histograms
+    TCanvas *cv2 = new TCanvas("c_yield", "e-p and Moller Yield", 1200, 400);
+    cv2->Divide(3, 1);
+    cv2->cd(1); mott_yield  ->SetLineColor(kBlue); mott_yield  ->SetLineWidth(2); mott_yield  ->Draw("E");
+    cv2->cd(2); moller_yield->SetLineColor(kBlue); moller_yield->SetLineWidth(2); moller_yield->Draw("E");
+    cv2->cd(3); yield_ratio ->SetLineColor(kBlue); yield_ratio ->SetLineWidth(2); yield_ratio ->Draw("E");
+    cv2->SaveAs("background_yield.png");
 
-    // Draw: yield histograms — overlay both configs on the same canvas
-    const int cfg_color[2] = {kBlue, kRed};
-    {
-        TCanvas *cv2 = new TCanvas("c_yield", "e-p and Moller Yield", 1200, 400);
-        cv2->Divide(3, 1);
+    // Draw: Moller center and vertex
+    gStyle->SetOptFit(1111); // show chi2/ndf, prob, params and errors on plot
+    TCanvas *cv3 = new TCanvas("c_moller_center_vertex", "Moller Center and Vertex", 1200, 400);
+    moller_center_x->Fit("gaus", "r", "", -3, 3);
+    moller_center_y->Fit("gaus", "r", "", -3, 3);
+    moller_vertex_z->Fit("gaus", "r", "", -100, 100);
+    cv3->Divide(3, 1);
+    cv3->cd(1); moller_center_x->SetLineColor(kBlue); moller_center_x->SetLineWidth(2); moller_center_x->Draw("E"); gPad->Update();
+    cv3->cd(2); moller_center_y->SetLineColor(kBlue); moller_center_y->SetLineWidth(2); moller_center_y->Draw("E"); gPad->Update();
+    cv3->cd(3); moller_vertex_z->SetLineColor(kBlue); moller_vertex_z->SetLineWidth(2); moller_vertex_z->Draw("E"); gPad->Update();
+    cv3->SaveAs("background_moller_center_vertex.png");
 
-        const char *hist_titles[3] = {"e-p Yield", "2 arm Moller Yield", "e-p/Moller Yield Ratio"};
-        for (int pad = 0; pad < 3; pad++) {
-            cv2->cd(pad + 1);
-            TH1F *h[2] = { (pad==0 ? mott_yield[0] : (pad==1 ? moller_yield[0] : yield_ratio[0])),
-                           (pad==0 ? mott_yield[1] : (pad==1 ? moller_yield[1] : yield_ratio[1])) };
-            for (int c = 0; c < nCfg; c++) {
-                h[c]->SetLineColor(cfg_color[c]);
-                h[c]->SetLineWidth(2);
-                h[c]->Draw(c == 0 ? "HIST" : "HIST SAME");
-            }
-            if (nCfg > 1 && pad == 0) {
-                TLegend *leg = new TLegend(0.55, 0.72, 0.92, 0.90);
-                for (int c = 0; c < nCfg; c++)
-                    leg->AddEntry(h[c], label[c], "L");
-                leg->Draw();
-            }
-        }
-        cv2->SaveAs("background_yield.png");
-    }
+    // ── Save everything to a ROOT file ────────────────────────────────────
+    TFile *fout = TFile::Open("background_output.root", "RECREATE");
+    // Histograms: TF1 fit functions are stored in GetListOfFunctions()
+    // and are written automatically together with each histogram.
+    hit_all       ->Write();
+    E_angle       ->Write();
+    hits_mott     ->Write();
+    hits_moller   ->Write();
+    E_angle_mott  ->Write();
+    E_angle_moller->Write();
+    mott_yield    ->Write();
+    moller_yield  ->Write();
+    yield_ratio   ->Write();
+    moller_center_x->Write();
+    moller_center_y->Write();
+    moller_vertex_z->Write();
+    // Canvases: preserve TPaveStats (fit parameter boxes) as drawn
+    cv1->Write();
+    cv2->Write();
+    cv3->Write();
+    fout->Close();
+    std::cout << "Saved to background_output.root" << std::endl;
 }
