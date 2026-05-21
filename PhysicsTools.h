@@ -23,6 +23,15 @@ struct HCHit {
     HCHit(float x_, float y_, float z_, float e_) : x(x_), y(y_), z(z_), energy(e_) {}
 };
 
+void projectToHyCal(GEMHit &hit, float HyCalZ = 6270.f)
+{
+    // Simple linear projection from GEM hit to HyCal plane at z=HyCalZ
+    float scale = HyCalZ / hit.z;
+    hit.x *= scale;
+    hit.y *= scale;
+    hit.z = HyCalZ;
+}
+
 //data structure for storing reconstructed Moller events used for analysis
 struct DataPoint
 {
