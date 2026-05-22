@@ -128,7 +128,7 @@ void energy_plot(){
                 mod_E->Fill(ev.cl_energy[j]);
                 if(fabs(xd) < 0.3 && fabs(yd) < 0.3) mod_E_center->Fill(ev.cl_energy[j]);
                 float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
-                if(E_expected > 0){
+                if(E_expected > 0 && ev.cl_energy[j] > E_expected - 200.f && ev.cl_energy[j] < E_expected + 200.f){
                     mod_E_ratio->Fill(ev.cl_energy[j] / E_expected);
                     mod_E_xy->Fill(xd, yd, ev.cl_energy[j] / E_expected);
                 }
@@ -157,7 +157,7 @@ void energy_plot(){
                 float yd = (gem_hit.y - mod.y) / mod.sy;
                 float theta_deg = atan(sqrt(mod.x*mod.x + mod.y*mod.y) / gem_hit.z) * 180. / TMath::Pi();
                 float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
-                if(E_expected > 0){
+                if(E_expected > 0 && ev.mHit_E[m] > E_expected - 200.f && ev.mHit_E[m] < E_expected + 200.f){
                     mod_E_xy_gem->Fill(xd, yd, ev.mHit_E[m] / E_expected);
                 }
                 mod_delta_x->Fill(xd, yd, ev.mHit_x[m] + shift_x - gem_hit.x);
