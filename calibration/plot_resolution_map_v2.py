@@ -40,7 +40,7 @@ BASE      = os.path.dirname(os.path.abspath(__file__))
 GEO_FILE  = os.path.join(BASE, '..', 'hycal_modules.json')
 
 DEFAULT_ROOT_FILE = os.path.join(BASE, '..', 'data', 'calib',
-                                 'prad_024512_recon.root')
+                                 'prad_024512_recon_new.root')
 
 M_PROTON  = 938.272   # MeV
 SHIFT_X   = 0.7       # mm  (position alignment, same as energy_plot.C)
@@ -48,17 +48,21 @@ SHIFT_Y   = 1.83      # mm
 MIN_NBLOCKS = 3       # minimum blocks per cluster
 
 # Histogram range and bins for each module's energy distribution
-HIST_NBINS  = 300
-HIST_EMIN   = 100.0   # MeV
-HIST_EMAX   = 5000.0  # MeV
+HIST_NBINS  = 420
+HIST_EMIN   = 0.0   # MeV
+HIST_EMAX   = 4200.0  # MeV
+
+# Only use the central fraction of each module for the resolution fit
+# (|xd| < CENTER_FRAC and |yd| < CENTER_FRAC, where xd = (x-cx)/sx)
+CENTER_FRAC = 0.3
 
 # Fit window: ± FIT_NSIGMA × sigma_hint around expected peak
-FIT_NSIGMA  = 1.5
+FIT_NSIGMA  = 1
 
 # 1D resolution plot range
 HIST1D_XMIN = 2.0    # %
-HIST1D_XMAX = 8.0    # %
-HIST1D_BINS = 40
+HIST1D_XMAX = 5.0    # %
+HIST1D_BINS = 30
 
 # 2D map colour range
 MAP_VMIN    = 2.0    # %
@@ -168,12 +172,13 @@ def expected_energy_ep(hx, hy, hz, ebeam):
 
 # ── 3. Fill histograms ────────────────────────────────────────────────────────
 
-def fill_histograms(root_path, geo, find_module, ebeam_override=None):
+def fill_histograms(root_path, geo, find_module, ebeam_override=None, center_only=True):
     """
     Loop over the 'recon' tree in root_path.
     Single-cluster events (n_clusters == 1, cl_nblocks[0] >= MIN_NBLOCKS):
       - apply position shift
       - find module by hit centre
+      - if center_only=True, only use hits with |xd|<CENTER_FRAC, |yd|<CENTER_FRAC
       - fill per-module TH1F and per-module E_expected accumulator
     Returns:
       hists      – dict name -> TH1F
@@ -219,6 +224,13 @@ def fill_histograms(root_path, geo, find_module, ebeam_override=None):
 
         name = find_module(hx, hy)
         if name is None:
+            continue
+
+        # Centre-region filter: only use hits near the module centre
+        m = geo[name]
+        xd = (hx - m['x']) / m['sx']
+        yd = (hy - m['y']) / m['sy']
+        if center_only and (abs(xd) >= CENTER_FRAC or abs(yd) >= CENTER_FRAC):
             continue
 
         if ebeam_override is not None:
@@ -289,7 +301,7 @@ def compute_resolutions(hists, eexp_acc):
 
 # ── 5. Layer filtering ────────────────────────────────────────────────────────
 
-def get_valid_modules(layers, min_hole_layer=3, min_edge_layer=3):
+def get_valid_modules(layers, min_hole_layer=2, min_edge_layer=6):
     """
     Return set of module names satisfying the layer constraints:
       layer_from_hole >= min_hole_layer  AND  layer_from_edge >= min_edge_layer
@@ -301,22 +313,31 @@ def get_valid_modules(layers, min_hole_layer=3, min_edge_layer=3):
 
 # ── 6. Plotting ───────────────────────────────────────────────────────────────
 
-def plot_1d(resolutions, valid_modules, out_path):
-    vals = [v for name, v in resolutions.items() if name in valid_modules]
-    if not vals:
+def plot_1d(resolutions_center, resolutions_all, valid_modules, out_path):
+    vals_c = [v for name, v in resolutions_center.items() if name in valid_modules]
+    vals_a = [v for name, v in resolutions_all.items()    if name in valid_modules]
+    if not vals_c and not vals_a:
         print('WARNING: no resolution values in valid region for 1D plot')
         return
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.hist(vals, bins=HIST1D_BINS, range=(HIST1D_XMIN, HIST1D_XMAX),
-            histtype='step', linewidth=2.0, color='steelblue')
-    mu  = np.mean(vals)
-    med = np.median(vals)
-    ax.axvline(mu,  ls='--', color='tomato',  lw=1.5, label=f'mean={mu:.2f}%')
-    ax.axvline(med, ls=':',  color='seagreen', lw=1.5, label=f'median={med:.2f}%')
+    hist_kw = dict(bins=HIST1D_BINS, range=(HIST1D_XMIN, HIST1D_XMAX),
+                   histtype='step', linewidth=2.0)
+    if vals_c:
+        mu_c  = np.mean(vals_c)
+        med_c = np.median(vals_c)
+        ax.hist(vals_c, label=f'center |xd|<{CENTER_FRAC}  mean={mu_c:.2f}%  median={med_c:.2f}%',
+                color='steelblue', **hist_kw)
+        ax.axvline(mu_c,  ls='--', color='steelblue', lw=1.2, alpha=0.7)
+    if vals_a:
+        mu_a  = np.mean(vals_a)
+        med_a = np.median(vals_a)
+        ax.hist(vals_a, label=f'all hits            mean={mu_a:.2f}%  median={med_a:.2f}%',
+                color='tomato', **hist_kw)
+        ax.axvline(mu_a,  ls='--', color='tomato', lw=1.2, alpha=0.7)
     ax.set_xlabel(r'$\sigma\,/\,\sqrt{E}\;\;(\%)$', fontsize=13)
     ax.set_ylabel('Modules', fontsize=13)
     ax.set_title('PbWO4 Energy Resolution (middle ring)', fontsize=14)
-    ax.legend(fontsize=12)
+    ax.legend(fontsize=11)
     ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
     ax.tick_params(axis='x', which='major', labelsize=11, length=6)
     ax.tick_params(axis='x', which='minor', length=3)
@@ -384,10 +405,10 @@ def main():
                         help='Path to recon ROOT file (default: prad_024512_recon.root)')
     parser.add_argument('--ebeam', type=float, default=None,
                         help='Override beam energy in MeV (default: use EBeam branch)')
-    parser.add_argument('--min-hole-layer', type=int, default=3,
-                        help='Minimum layer from centre hole (default: 3)')
-    parser.add_argument('--min-edge-layer', type=int, default=3,
-                        help='Minimum layer from outer edge (default: 3)')
+    parser.add_argument('--min-hole-layer', type=int, default=2,
+                        help='Minimum layer from centre hole (default: 2)')
+    parser.add_argument('--min-edge-layer', type=int, default=6,
+                        help='Minimum layer from outer edge (default: 6)')
     args = parser.parse_args()
 
     root_path = os.path.abspath(args.root_file)
@@ -408,25 +429,33 @@ def main():
                                      args.min_hole_layer, args.min_edge_layer)
     print(f'Valid modules (middle ring): {len(valid_mods)} / {len(geo)}')
 
-    # 2. Fill histograms
-    hists, eexp_acc = fill_histograms(root_path, geo, find_module, args.ebeam)
+    # 2. Fill histograms (centre region and all hits)
+    print('--- Filling centre-region histograms ---')
+    hists_c, eexp_acc_c = fill_histograms(root_path, geo, find_module, args.ebeam,
+                                           center_only=True)
+    print('--- Filling all-hits histograms ---')
+    hists_a, eexp_acc_a = fill_histograms(root_path, geo, find_module, args.ebeam,
+                                           center_only=False)
 
     # 3. Fit
-    resolutions = compute_resolutions(hists, eexp_acc)
-    print(f'Successfully fitted {len(resolutions)} modules')
-    valid_res = {n: v for n, v in resolutions.items() if n in valid_mods}
-    if valid_res:
-        vals = list(valid_res.values())
-        print(f'Resolution in valid region: mean={np.mean(vals):.2f}%,  '
-              f'median={np.median(vals):.2f}%,  '
-              f'range=[{np.min(vals):.2f}, {np.max(vals):.2f}]%')
+    resolutions_c = compute_resolutions(hists_c, eexp_acc_c)
+    resolutions_a = compute_resolutions(hists_a, eexp_acc_a)
+    print(f'Fitted (centre): {len(resolutions_c)} modules')
+    print(f'Fitted (all)   : {len(resolutions_a)} modules')
+    for label, res in [('centre', resolutions_c), ('all', resolutions_a)]:
+        valid_res = {n: v for n, v in res.items() if n in valid_mods}
+        if valid_res:
+            vals = list(valid_res.values())
+            print(f'  [{label}] mean={np.mean(vals):.2f}%  '
+                  f'median={np.median(vals):.2f}%  '
+                  f'range=[{np.min(vals):.2f}, {np.max(vals):.2f}]%')
 
     # 4. Output paths (alongside this script)
     out_1d  = os.path.join(BASE, 'resolution_distribution_v2.png')
     out_map = os.path.join(BASE, 'resolution_map_v2.png')
 
-    plot_1d(resolutions, valid_mods, out_1d)
-    plot_2d_map(resolutions, geo, valid_mods, out_map)
+    plot_1d(resolutions_c, resolutions_a, valid_mods, out_1d)
+    plot_2d_map(resolutions_c, geo, valid_mods, out_map)
 
 
 if __name__ == '__main__':

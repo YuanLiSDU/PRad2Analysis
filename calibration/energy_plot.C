@@ -56,7 +56,7 @@ void energy_plot(){
            mod.name.Data(), mod.x, mod.y, mod.sx, mod.sy);
 
     // ── File 1: prad_024512_recon.root ───────────────────────────────────────
-    TFile *f = TFile::Open("../data/calib/prad_024512_recon.root");
+    TFile *f = TFile::Open("../data/calib/prad_024512_recon_new.root");
     TTree *tree = (TTree*)f->Get("recon");
 
     ReconEventData *evp = new ReconEventData();
@@ -68,6 +68,8 @@ void energy_plot(){
     TH2F *h2 = new TH2F("h2", "Energy vs. Angle;Energy (MeV);Scattering Angle (degrees)", 100, 0, 5, 4200/2, 0, 4200);
     TH1F *mod_E = new TH1F("h1",
         Form("Energy for %s;Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
+    TH1F *mod_E_center = new TH1F("h2",
+        Form("Energy for %s (center);Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
     TH1F *mod_E_ratio = new TH1F("h3",
         Form("E/E_{exp} for %s;E_{rec}/E_{exp};Counts", mod.name.Data()), 500, 0, 2);
     TH1F *mod_E_bloclk[5][5];
@@ -124,6 +126,7 @@ void energy_plot(){
                 float xd = (ev.cl_x[j] - mod.x) / mod.sx;
                 float yd = (ev.cl_y[j] - mod.y) / mod.sy;
                 mod_E->Fill(ev.cl_energy[j]);
+                if(fabs(xd) < 0.3 && fabs(yd) < 0.3) mod_E_center->Fill(ev.cl_energy[j]);
                 float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
                 if(E_expected > 0){
                     mod_E_ratio->Fill(ev.cl_energy[j] / E_expected);
@@ -171,9 +174,22 @@ void energy_plot(){
 
     // Energy comparison
     TCanvas *c2 = new TCanvas("c2", Form("Energy comparison for %s", mod.name.Data()), 1200, 800);
+    mod_E_center->Scale(mod_E->GetMaximum() / mod_E_center->GetMaximum()); // scale center histogram to match the max of all hits for better visual comparison
     mod_E->SetLineColor(kBlue);
     mod_E->SetLineWidth(2);
     mod_E->Draw("HIST");
+    mod_E_center->SetLineColor(kRed);
+    mod_E_center->SetLineWidth(2);
+    mod_E_center->Draw("HIST SAME");
+    mod_E_center->Fit("gaus", "Q","r", 3400, 3500);
+    
+    float mean = mod_E_center->GetFunction("gaus")->GetParameter(1);
+    float sigma = mod_E_center->GetFunction("gaus")->GetParameter(2);
+    float res = sigma / mean * sqrt(mean / 1000.);
+    TLegend *leg = new TLegend(0.6, 0.7, 0.9, 0.9);
+    leg->AddEntry(mod_E, "All hits", "L");
+    leg->AddEntry(mod_E_center, Form("center hits (res = %.2f%%)", res * 100), "L");
+    leg->Draw();
 
     // E/E_exp comparison
     TCanvas *c3 = new TCanvas("c3", Form("E/E_exp comparison for %s", mod.name.Data()), 1200, 800);

@@ -104,6 +104,27 @@ float GetMollerPhiDiff(const MollerEvent &event1)
     return phi_diff;
 }
 
+float EnergyLoss(float theta_deg, float E)
+{
+    // simplified energy loss through target materials
+    // path lengths scale as 1/cos(theta) for small angles
+    float theta = theta_deg * DEG2RAD;
+    float sec = (std::cos(theta) > 0.01f) ? (1.f / std::cos(theta)) : 100.f;
+
+    // material thicknesses (mm) and dE/dx (MeV/mm) — approximate values
+    // aluminum window: 0.5 mm, dE/dx ~ 1.6 MeV/mm, vacuum window
+    // GEM foils: ~0.05 mm effective per GEM, dE/dx ~ 2.0 MeV/mm
+    // GEM win Al foils: ~0.06 mm effective per GEM, dE/dx ~ 1.6 MeV/mm
+    // kapton window: ~0.24 mm per GEM, dE/dx ~ 1.8 MeV/mm,
+    float eloss = 0.f;
+    eloss += 0.500f * 1.6f * sec;  // Al window
+    eloss += 0.120f * 1.6f * sec;  // GEM win Al foils (2 GEMs)
+    eloss += 0.100f * 2.0f * sec;  // GEM foils (2 GEMs)
+    eloss += 0.480f * 1.8f * sec;  // kapton cover
+
+    return eloss;  // total energy loss in MeV
+}
+
 float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type)
 {
     float theta = theta_deg * DEG2RAD;
@@ -114,7 +135,8 @@ float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type)
         // elastic e-p: E' = E * M / (M + E*(1 - cos_t))
         // where M = proton mass
         float expectE = EBeam * M_PROTON / (M_PROTON + EBeam * (1.f - cos_t));
-        return expectE;
+        float eloss = EnergyLoss(theta_deg, expectE);
+        return expectE - eloss;
     }
     if (type == "ee") {
         // Moller scattering: exact lab-frame formula from 4-momentum conservation
@@ -124,7 +146,8 @@ float ExpectedEnergy(float theta_deg, float EBeam, const std::string &type)
         float den = (gamma + 1.f) - (gamma - 1.f) * cos_t * cos_t;
         if (den <= 0) return 0.f;
         float expectE = M_ELECTRON * num / den;
-        return expectE;
+        float eloss = EnergyLoss(theta_deg, expectE);
+        return expectE - eloss;
     }
     return 0.f;
 }
