@@ -5,6 +5,7 @@
 
 int example_mod = 633;  // W module number: change this to switch modules
 float shift_x = 0.7f, shift_y = 1.83f;
+const int blocks = 5; // number of blocks per side for correction map
 
 // ── Module geometry helper ────────────────────────────────────────────────────
 struct ModInfo {
@@ -56,7 +57,7 @@ void energy_plot(){
            mod.name.Data(), mod.x, mod.y, mod.sx, mod.sy);
 
     // ── File 1: prad_024512_recon.root ───────────────────────────────────────
-    TFile *f = TFile::Open("../data/calib/prad_024512_recon_new.root");
+    TFile *f = TFile::Open("../data/calib/prad_024713_recon.root");
     TTree *tree = (TTree*)f->Get("recon");
 
     ReconEventData *evp = new ReconEventData();
@@ -65,32 +66,46 @@ void energy_plot(){
 
     TH2F *hit_all = new TH2F("hit_all", "Hit distribution for all events;X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
     TH2F *hit_all_gem = new TH2F("hit_all_gem", "Hit distribution for all events (GEM projection);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
-    TH2F *h2 = new TH2F("h2", "Energy vs. Angle;Energy (MeV);Scattering Angle (degrees)", 100, 0, 5, 4200/2, 0, 4200);
+    TH2F *h2 = new TH2F("2h", "Energy vs. Angle;Energy (MeV);Scattering Angle (degrees)", 100, 0, 5, 4200/2, 0, 4200);
     TH1F *mod_E = new TH1F("h1",
         Form("Energy for %s;Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
     TH1F *mod_E_center = new TH1F("h2",
         Form("Energy for %s (center);Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
     TH1F *mod_E_ratio = new TH1F("h3",
         Form("E/E_{exp} for %s;E_{rec}/E_{exp};Counts", mod.name.Data()), 500, 0, 2);
-    TH1F *mod_E_bloclk[5][5];
-    for(int bx = 0; bx < 5; bx++){
-        for(int by = 0; by < 5; by++){
+    TH1F *mod_E_bloclk[blocks][blocks];
+    for(int bx = 0; bx < blocks; bx++){
+        for(int by = 0; by < blocks; by++){
             mod_E_bloclk[bx][by] = new TH1F(Form("E_block_%d_%d", bx, by),
                 Form("Energy block (%d,%d) %s;Energy (MeV);Counts", bx, by, mod.name.Data()),
                 420, 0, 4200);
         }
     }
-    TProfile2D *mod_E_xy = new TProfile2D("E_xy",
-        Form("E_{rec}/E_{exp} per 5#times5 Block in %s;x_{d};y_{d};E_{rec}/E_{exp}", mod.name.Data()),
-        5, -0.5, 0.5, 5, -0.5, 0.5);
+    TH2F *mod_E_xy = new TH2F("E_xy",
+        Form("Gaus fit mean/E_{exp} per %d#times%d Block in %s;x_{d};y_{d};E_{fit}/E_{exp}", blocks, blocks, mod.name.Data()),
+        blocks, -0.5, 0.5, blocks, -0.5, 0.5);
+    TProfile2D *mod_Eexp_xy = new TProfile2D("Eexp_xy",
+        "Average E_{exp} per block;x_{d};y_{d};E_{exp} (MeV)",
+        blocks, -0.5, 0.5, blocks, -0.5, 0.5);
     TH2F *mod_hit_xy = new TH2F("hit_xy",
         Form("Hit distribution in %s;x_{d};y_{d}", mod.name.Data()),
         75, -0.5, 0.5, 75, -0.5, 0.5);
 
-    TProfile2D *mod_E_xy_gem = new TProfile2D("E_xy_gem",
-        Form("E_{rec}/E_{exp} per 5#times5 Block in %s (GEM projection);x_{d};y_{d};E_{rec}/E_{exp}", mod.name.Data()),
-        5, -0.5, 0.5, 5, -0.5, 0.5);
-    
+    TH2F *mod_E_xy_gem = new TH2F("E_xy_gem",
+        Form("Gaus fit mean/E_{exp} per %d#times%d Block in %s (GEM);x_{d};y_{d};E_{fit}/E_{exp}", blocks, blocks, mod.name.Data()),
+        blocks, -0.5, 0.5, blocks, -0.5, 0.5);
+    TProfile2D *mod_Eexp_xy_gem = new TProfile2D("Eexp_xy_gem",
+        "Average E_{exp} per block (GEM);x_{d};y_{d};E_{exp} (MeV)",
+        blocks, -0.5, 0.5, blocks, -0.5, 0.5);
+    TH1F *mod_E_bloclk_gem[blocks][blocks];
+    for(int bx = 0; bx < blocks; bx++){
+        for(int by = 0; by < blocks; by++){
+            mod_E_bloclk_gem[bx][by] = new TH1F(Form("E_block_gem_%d_%d", bx, by),
+                Form("Energy block GEM (%d,%d) %s;Energy (MeV);Counts", bx, by, mod.name.Data()),
+                420, 0, 4200);
+        }
+    }
+
     //delta X between Hycal X and GEM X
     TProfile2D *mod_delta_x = new TProfile2D("delta_x", "Delta X between HyCal and GEM;x/d;y/d;X_{HyCal} - X_{GEM} (mm)",
         50, -0.5, 0.5, 1, -0.5, 0.5);
@@ -105,7 +120,7 @@ void energy_plot(){
     TProfile *h1_delta_y = new TProfile("h1_delta_y", "Mean #DeltaY vs y_{d};y_{d};#LT Y_{HyCal} - Y_{GEM,proj} #GT (mm)",
         50, -0.5, 0.5);
 
-    for (Long64_t i=0; i<tree->GetEntries(); i++){
+    for (Long64_t i=0; i<tree->GetEntries()/2; i++){
         tree->GetEntry(i);
         if(i % 10000 == 0)
             cout << "Processing event " << i << " / " << tree->GetEntries() << "\r" << flush;
@@ -130,11 +145,11 @@ void energy_plot(){
                 float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
                 if(E_expected > 0 && ev.cl_energy[j] > E_expected - 200.f && ev.cl_energy[j] < E_expected + 200.f){
                     mod_E_ratio->Fill(ev.cl_energy[j] / E_expected);
-                    mod_E_xy->Fill(xd, yd, ev.cl_energy[j] / E_expected);
+                    mod_Eexp_xy->Fill(xd, yd, E_expected);
                 }
                 int bx = mod_E_xy->GetXaxis()->FindBin(xd) - 1;
                 int by = mod_E_xy->GetYaxis()->FindBin(yd) - 1;
-                if(bx >= 0 && bx < 5 && by >= 0 && by < 5)
+                if(bx >= 0 && bx < blocks && by >= 0 && by < blocks)
                     mod_E_bloclk[bx][by]->Fill(ev.cl_energy[j]);
                 mod_hit_xy->Fill(xd, yd);
             }
@@ -157,8 +172,12 @@ void energy_plot(){
                 float yd = (gem_hit.y - mod.y) / mod.sy;
                 float theta_deg = atan(sqrt(mod.x*mod.x + mod.y*mod.y) / gem_hit.z) * 180. / TMath::Pi();
                 float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
+                int bx_gem = mod_E_xy_gem->GetXaxis()->FindBin(xd) - 1;
+                int by_gem = mod_E_xy_gem->GetYaxis()->FindBin(yd) - 1;
                 if(E_expected > 0 && ev.mHit_E[m] > E_expected - 200.f && ev.mHit_E[m] < E_expected + 200.f){
-                    mod_E_xy_gem->Fill(xd, yd, ev.mHit_E[m] / E_expected);
+                    mod_Eexp_xy_gem->Fill(xd, yd, E_expected);
+                    if(bx_gem >= 0 && bx_gem < blocks && by_gem >= 0 && by_gem < blocks)
+                        mod_E_bloclk_gem[bx_gem][by_gem]->Fill(ev.mHit_E[m]);
                 }
                 mod_delta_x->Fill(xd, yd, ev.mHit_x[m] + shift_x - gem_hit.x);
                 mod_delta_y->Fill(xd, yd, ev.mHit_y[m] + shift_y - gem_hit.y);
@@ -166,6 +185,51 @@ void energy_plot(){
                 h1_delta_y->Fill(yd, ev.mHit_y[m] + shift_y - gem_hit.y);
             }
         }
+    }
+
+    // ── Gaussian fit per block → fill mod_E_xy ────────────────────────────────
+    for(int bx = 0; bx < blocks; bx++){
+        for(int by = 0; by < blocks; by++){
+            if(mod_E_bloclk[bx][by]->GetEntries() < 20) continue;
+            double eexp = mod_Eexp_xy->GetBinContent(bx+1, by+1);
+            if(eexp <= 0) continue;
+            double sigma_hint = 0.03 * eexp * sqrt(eexp / 1000.);
+            if(sigma_hint < 20.) sigma_hint = 20.;
+            TF1 *gfit = new TF1(Form("gfit_%d_%d", bx, by), "gaus",
+                                 eexp - 1.5*sigma_hint, eexp + 1.5*sigma_hint);
+            gfit->SetParameters(mod_E_bloclk[bx][by]->GetMaximum(), eexp, sigma_hint);
+            mod_E_bloclk[bx][by]->Fit(gfit, "RQ0");
+            if(gfit->GetParameter(2) > 0)
+                mod_E_xy->SetBinContent(bx+1, by+1, gfit->GetParameter(1) / eexp);
+        }
+    }
+
+    // ── Gaussian fit per block (GEM) → fill mod_E_xy_gem ────────────────────
+    for(int bx = 0; bx < blocks; bx++){
+        for(int by = 0; by < blocks; by++){
+            if(mod_E_bloclk_gem[bx][by]->GetEntries() < 20) continue;
+            double eexp = mod_Eexp_xy_gem->GetBinContent(bx+1, by+1);
+            if(eexp <= 0) continue;
+            double sigma_hint = 0.03 * eexp * sqrt(eexp / 1000.);
+            if(sigma_hint < 20.) sigma_hint = 20.;
+            TF1 *gfit_gem = new TF1(Form("gfit_gem_%d_%d", bx, by), "gaus",
+                                     eexp - 1.5*sigma_hint, eexp + 1.5*sigma_hint);
+            gfit_gem->SetParameters(mod_E_bloclk_gem[bx][by]->GetMaximum(), eexp, sigma_hint);
+            mod_E_bloclk_gem[bx][by]->Fit(gfit_gem, "RQ0");
+            if(gfit_gem->GetParameter(2) > 0)
+                mod_E_xy_gem->SetBinContent(bx+1, by+1, gfit_gem->GetParameter(1) / eexp);
+        }
+    }
+    TH1F *mod_E_corrected = new TH1F("mod_E_corrected", Form("Energy for %s after block-wise correction;Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
+    for(int i = 1; i <= mod_E->GetNbinsX(); i++){
+        double e = mod_E->GetBinCenter(i);
+        double xd = (e - mod.x) / mod.sx;
+        double yd = (e - mod.y) / mod.sy;
+        int bx = mod_E_xy_gem->GetXaxis()->FindBin(xd) - 1;
+        int by = mod_E_xy_gem->GetYaxis()->FindBin(yd) - 1;
+        double correction = (bx >= 0 && bx < blocks && by >= 0 && by < blocks) ? 
+            mod_E_xy_gem->GetBinContent(bx+1, by+1) : 1.0;
+        mod_E_corrected->SetBinContent(i, mod_E->GetBinContent(i) / correction);
     }
 
     // ── Drawing ───────────────────────────────────────────────────────────────

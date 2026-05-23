@@ -11,10 +11,10 @@ float gz[4] = {5805.0,  5850.0, 5413.0, 5458.9};
 float Ebeam = 3488.43f; // MeV, can adjust as needed for different beam energies
 
 // 2D histogram ranges and bin counts
-const float gem_x_lo[4]   = {-280., -10., -280., -10.};
-const float gem_x_hi[4]   = {  10., 280.,   10., 280.};
-const float gem_y_lo      = -280., gem_y_hi = 280.;
-const int   gem_x_bins    = 80,    gem_y_bins = 160;
+const float gem_x_lo[4]   = {-300., -15., -300., -15.};
+const float gem_x_hi[4]   = {  15., 300.,   15., 300.};
+const float gem_y_lo      = -300., gem_y_hi = 300.;
+const int   gem_x_bins    = 75,    gem_y_bins = 150;
 const float inter_xy_lo   = -30.,  inter_xy_hi = 30.;
 const int   inter_xy_bins = 300;
 
@@ -74,16 +74,21 @@ void processOneFile(const TString &fname,
 
     // GEM0 dead strip: x in [-170, -150] mm and y < 0
     auto isGEM0Dead = [](float x, float y) -> bool {
-        return (x >= -170.f && x <= -150.f && y < 0.f);
+        return (x >= -170.f && x <= -150.f && y < 0.f) || (y < 0.f && x > 0.f);
+    };
+
+    auto isGEM1Dead = [](float x, float y) -> bool {
+        return (y < 0.f && x < -5.f);
     };
 
     for (int i = 0; i < nEntries; i++) {
         chain.GetEntry(i);
         if (i % 10000 == 0)
             std::cout << "  " << i << "/" << nEntries << "\r" << std::flush;
-
+        if (data.n_clusters != 1) continue; // only consider single-cluster events
         for (int j = 0; j < data.n_clusters; j++) {
-            if (fabs(data.cl_energy[j] - Ebeam) > 250.) continue;
+            if (fabs(data.cl_energy[j] - Ebeam) > 200.) continue;
+            if (data.cl_nblocks[j] < 3) continue; // only consider clusters with 3 or more blocks to reduce noise
             if (fabs(data.cl_x[j]) < 20.75*2.5 && fabs(data.cl_y[j]) < 20.75*2.5) continue;
 
             // Use local copies to avoid accumulating coordinate transformations
@@ -93,6 +98,7 @@ void processOneFile(const TString &fname,
                 float tx = cx, ty = cy, tz = cz;
                 TransformToGEMFrame(tx, ty, tz, k);
                 if (k == 0 && isGEM0Dead(tx, ty)) continue; // skip GEM0 dead strip
+                if (k == 1 && isGEM1Dead(tx, ty)) continue; // skip GEM1 dead area
                 h_should[k]->Fill(tx, ty);
                 if ((data.matchFlag[j] & (1 << k)) != 0)
                     h_match[k]->Fill(data.matchGEMx[j][k], data.matchGEMy[j][k]);
@@ -115,8 +121,10 @@ void processOneFile(const TString &fname,
             // gem 1: require gem3 or gem2 to also match
             if (data.matchFlag[j] & (1<<3) || data.matchFlag[j] & (1<<2)) {
                 float tx=cx, ty=cy, tz=cz; TransformToGEMFrame(tx, ty, tz, 1);
-                h_2sh[1]->Fill(tx, ty);
-                if (data.matchFlag[j] & (1<<1)) h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                if(!isGEM1Dead(tx, ty)) { // skip GEM1 dead area
+                    h_2sh[1]->Fill(tx, ty);
+                    if (data.matchFlag[j] & (1<<1)) h_2mh[1]->Fill(data.matchGEMx[j][1], data.matchGEMy[j][1]);
+                }
             }
             // gem 3: require gem1 or gem0 to also match
             if (data.matchFlag[j] & (1<<1) || data.matchFlag[j] & (1<<0)) {
