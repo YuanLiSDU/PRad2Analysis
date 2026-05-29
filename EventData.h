@@ -94,6 +94,7 @@ struct ReconEventData {
     float cl_x[kMaxClusters]       = {};
     float cl_y[kMaxClusters]       = {};
     float cl_z[kMaxClusters]       = {};
+    float cl_time[kMaxClusters]    = {};
     float cl_energy[kMaxClusters]  = {};
     uint8_t cl_nblocks[kMaxClusters] = {};
     uint16_t cl_center[kMaxClusters]  = {};
@@ -159,6 +160,7 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("cl_x",         ev.cl_x);
     tree->SetBranchAddress("cl_y",         ev.cl_y);
     tree->SetBranchAddress("cl_z",         ev.cl_z);
+    tree->SetBranchAddress("cl_time",      ev.cl_time);
     tree->SetBranchAddress("cl_energy",    ev.cl_energy);
     tree->SetBranchAddress("cl_nblocks",   ev.cl_nblocks);
     tree->SetBranchAddress("cl_center",    ev.cl_center);
@@ -191,6 +193,12 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("gem_y_size",   ev.gem_y_size);
     tree->SetBranchAddress("gem_x_mTbin",   ev.gem_x_mTbin);
     tree->SetBranchAddress("gem_y_mTbin",   ev.gem_y_mTbin);
+    //veto branches
+    tree->SetBranchAddress("veto_nch",     &ev.veto_nch);
+    tree->SetBranchAddress("veto_id",           ev.veto_id);
+    tree->SetBranchAddress("veto_npeaks",       ev.veto_npeaks);
+    tree->SetBranchAddress("veto_peak_time",    ev.veto_peak_time);
+    tree->SetBranchAddress("veto_peak_integral", ev.veto_peak_integral);
 };
 
 void setupRawBranches(TTree *tree, RawEventData &ev){
