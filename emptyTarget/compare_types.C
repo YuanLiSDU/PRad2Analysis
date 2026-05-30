@@ -7,10 +7,10 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "../data/0.7GeV/typeA_24653.root",
-    const char *fileB = "../data/0.7GeV/typeB.root",
-    const char *fileC = "../data/0.7GeV/typeC.root",
-    const char *fileD = "../data/0.7GeV/typeD.root")
+    const char *fileA = "../../typeA.root",
+    const char *fileB = "../../typeB.root",
+    const char *fileC = "../../typeC.root",
+    const char *fileD = "../../typeC.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
     const char *paths[4] = { fileA, fileB, fileC, fileD };
