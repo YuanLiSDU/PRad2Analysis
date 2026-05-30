@@ -135,6 +135,83 @@ void compare_types(
 
     cv->SaveAs("compare_types.png");
 
+    // ── Second canvas: (B-C)/A and (B-C)/(A-B) ───────────────────────────
+    // Numerator: B - C
+    TH1F *mott_bmc   = (TH1F*)mott  [1]->Clone("mott_BminusC");
+    TH1F *moller_bmc = (TH1F*)moller[1]->Clone("moller_BminusC");
+    mott_bmc  ->Add(mott  [2], -1.);
+    moller_bmc->Add(moller[2], -1.);
+
+    // (B-C)/A
+    TH1F *mott_bmc_over_a   = (TH1F*)mott_bmc  ->Clone("mott_BmC_over_A");
+    TH1F *moller_bmc_over_a = (TH1F*)moller_bmc->Clone("moller_BmC_over_A");
+    mott_bmc_over_a  ->Divide(mott_bmc,   mott  [0], 1., 1., "");
+    moller_bmc_over_a->Divide(moller_bmc, moller[0], 1., 1., "");
+
+    // (B-C)/(A-B)
+    TH1F *mott_bmc_over_amb   = (TH1F*)mott_bmc  ->Clone("mott_BmC_over_AmB");
+    TH1F *moller_bmc_over_amb = (TH1F*)moller_bmc->Clone("moller_BmC_over_AmB");
+    mott_bmc_over_amb  ->Divide(mott_bmc,   mott_denom,   1., 1., "");
+    moller_bmc_over_amb->Divide(moller_bmc, moller_denom, 1., 1., "");
+
+    const int bmc_color[2] = { kBlue+1, kOrange+7 };
+    const char *bmc_label[2] = { "(B-C)/A", "(B-C)/(A-B)" };
+    TH1F *mott_bmc_set  [2] = { mott_bmc_over_a,   mott_bmc_over_amb   };
+    TH1F *moller_bmc_set[2] = { moller_bmc_over_a, moller_bmc_over_amb };
+
+    TCanvas *cv2 = new TCanvas("c_compare_bmc", "(B-C) Ratios", 1200, 500);
+    cv2->Divide(2, 1);
+
+    // Mott
+    cv2->cd(1);
+    auto [bmc_mott_lo, bmc_mott_hi] = yRange(mott_bmc_set, 2);
+    for (int i = 0; i < 2; i++) {
+        mott_bmc_set[i]->SetTitle("Mott (B-C) Ratios;#theta (deg);Ratio");
+        mott_bmc_set[i]->SetLineColor(bmc_color[i]);
+        mott_bmc_set[i]->SetMarkerColor(bmc_color[i]);
+        mott_bmc_set[i]->SetMarkerStyle(20 + i);
+        mott_bmc_set[i]->SetLineWidth(2);
+        if (i == 0) {
+            mott_bmc_set[i]->GetYaxis()->SetRangeUser(bmc_mott_lo, bmc_mott_hi);
+            mott_bmc_set[i]->Draw("E");
+        } else {
+            mott_bmc_set[i]->Draw("E SAME");
+        }
+    }
+    TLine *line_mott2 = new TLine(mott_bmc_set[0]->GetXaxis()->GetXmin(), 0.,
+                                   mott_bmc_set[0]->GetXaxis()->GetXmax(), 0.);
+    line_mott2->SetLineStyle(2); line_mott2->SetLineColor(kGray+1); line_mott2->Draw();
+    TLegend *leg3 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 2; i++) leg3->AddEntry(mott_bmc_set[i], bmc_label[i], "PE");
+    leg3->Draw();
+
+    // Moller (double-arm range)
+    cv2->cd(2);
+    for (int i = 0; i < 2; i++)
+        moller_bmc_set[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
+    auto [bmc_mol_lo, bmc_mol_hi] = yRange(moller_bmc_set, 2);
+    for (int i = 0; i < 2; i++) {
+        moller_bmc_set[i]->SetTitle("Moller (B-C) Ratios;#theta (deg);Ratio");
+        moller_bmc_set[i]->SetLineColor(bmc_color[i]);
+        moller_bmc_set[i]->SetMarkerColor(bmc_color[i]);
+        moller_bmc_set[i]->SetMarkerStyle(20 + i);
+        moller_bmc_set[i]->SetLineWidth(2);
+        if (i == 0) {
+            moller_bmc_set[i]->GetYaxis()->SetRangeUser(bmc_mol_lo, bmc_mol_hi);
+            moller_bmc_set[i]->Draw("E");
+        } else {
+            moller_bmc_set[i]->Draw("E SAME");
+        }
+    }
+    TLine *line_mol2 = new TLine(moller_bmc_set[0]->GetXaxis()->GetXmin(), 0.,
+                                  moller_bmc_set[0]->GetXaxis()->GetXmax(), 0.);
+    line_mol2->SetLineStyle(2); line_mol2->SetLineColor(kGray+1); line_mol2->Draw();
+    TLegend *leg4 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 2; i++) leg4->AddEntry(moller_bmc_set[i], bmc_label[i], "PE");
+    leg4->Draw();
+
+    cv2->SaveAs("compare_types_bmc.png");
+
     // ── Save to ROOT file ─────────────────────────────────────────────────
     TFile *fout = TFile::Open("compare_types_output.root", "RECREATE");
     mott_denom  ->Write();
@@ -143,7 +220,12 @@ void compare_types(
         mott_ratio  [i]->Write();
         moller_ratio[i]->Write();
     }
-    cv->Write();
+    mott_bmc_over_a    ->Write();
+    moller_bmc_over_a  ->Write();
+    mott_bmc_over_amb  ->Write();
+    moller_bmc_over_amb->Write();
+    cv ->Write();
+    cv2->Write();
     fout->Close();
     std::cout << "Saved to compare_types_output.root" << std::endl;
 
