@@ -64,6 +64,23 @@ void compare_types(
         moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B);#theta (deg);Ratio");
     }
 
+    // ── Fix correlated errors for B/(A-B) ────────────────────────────────
+    // B appears in both numerator and denominator A-B, so ROOT Divide() over-
+    // counts σ_B.  Correct: σ_f = sqrt(B²σ_A² + A²σ_B²) / (A-B)²
+    {
+        auto fixBoverAmB = [](TH1F *hratio, TH1F *hA, TH1F *hB) {
+            for (int b = 1; b <= hratio->GetNbinsX(); b++) {
+                double A = hA->GetBinContent(b), sA = hA->GetBinError(b);
+                double B = hB->GetBinContent(b), sB = hB->GetBinError(b);
+                double d = A - B;
+                if (d == 0.) continue;
+                hratio->SetBinError(b, std::sqrt(B*B*sA*sA + A*A*sB*sB) / (d*d));
+            }
+        };
+        fixBoverAmB(mott_ratio  [0], mott  [0], mott  [1]);
+        fixBoverAmB(moller_ratio[0], moller[0], moller[1]);
+    }
+
     // ── Draw ─────────────────────────────────────────────────────────────
     gStyle->SetOptStat(0);
 
@@ -153,6 +170,26 @@ void compare_types(
     TH1F *moller_bmc_over_amb = (TH1F*)moller_bmc->Clone("moller_BmC_over_AmB");
     mott_bmc_over_amb  ->Divide(mott_bmc,   mott_denom,   1., 1., "");
     moller_bmc_over_amb->Divide(moller_bmc, moller_denom, 1., 1., "");
+
+    // ── Fix correlated errors for (B-C)/(A-B) ────────────────────────────
+    // B appears in both the numerator (B-C) and denominator (A-B).
+    // Correct: σ_f = sqrt((B-C)²σ_A² + (A-C)²σ_B² + (A-B)²σ_C²) / (A-B)²
+    {
+        auto fixBmCoverAmB = [](TH1F *hratio, TH1F *hA, TH1F *hB, TH1F *hC) {
+            for (int b = 1; b <= hratio->GetNbinsX(); b++) {
+                double A = hA->GetBinContent(b), sA = hA->GetBinError(b);
+                double B = hB->GetBinContent(b), sB = hB->GetBinError(b);
+                double C = hC->GetBinContent(b), sC = hC->GetBinError(b);
+                double d = A - B;
+                if (d == 0.) continue;
+                hratio->SetBinError(b, std::sqrt((B-C)*(B-C)*sA*sA +
+                                                  (A-C)*(A-C)*sB*sB +
+                                                       d*d*sC*sC) / (d*d));
+            }
+        };
+        fixBmCoverAmB(mott_bmc_over_amb,   mott  [0], mott  [1], mott  [2]);
+        fixBmCoverAmB(moller_bmc_over_amb, moller[0], moller[1], moller[2]);
+    }
 
     const int bmc_color[2] = { kBlue+1, kOrange+7 };
     const char *bmc_label[2] = { "(B-C)/A", "(B-C)/(A-B)" };
