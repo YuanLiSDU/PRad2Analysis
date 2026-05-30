@@ -127,7 +127,7 @@ static void fillHists(const std::vector<TString> &fnames,
 void background(const char *files = "../data/empty_target/prad_24386.filtered.root",
                 double lc = 1.0)
 {
-    float Ebeam = 728.9f; // MeV
+    float Ebeam = 3485.71f; // MeV
 
     // Parse comma-separated file list
     std::vector<TString> fileList;

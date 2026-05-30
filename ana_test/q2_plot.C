@@ -115,7 +115,7 @@ static void fillHists(const std::vector<TString> &fnames,
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
-    for (Long64_t i = 0; i < tree->GetEntries()/10; i++) {
+    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
         if (i % 10000 == 0)
             std::cout << "  " << i << " / " << tree->GetEntries() << "\r" << std::flush;
         tree->GetEntry(i);
@@ -212,7 +212,7 @@ static void fillHists(const std::vector<TString> &fnames,
 };
 
 void q2_plot(const char *files = "../data/0.7GeV/prad_024640_filter.root",
-                double lc = 164753./10.){
+                double lc = 164753.){
 
     double lc_B = 85245.7;
 
