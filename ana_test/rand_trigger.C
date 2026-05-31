@@ -172,11 +172,11 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
                     rawsum_soft += integral_soft * GetSoftFactor(mod_id);
                     rawsum_firm += integral_firm * GetFirmFactor(mod_id);
 
-                    ht->Fill(time_soft);
+                    if(time_soft > 0.f) ht->Fill(time_soft);
                 }
 
-                hs->Fill(rawsum_soft);
-                hf->Fill(rawsum_firm);
+                if(rawsum_soft > 0.f) hs->Fill(rawsum_soft);
+                if(rawsum_firm > 0.f) hf->Fill(rawsum_firm);
             }
             hs_list[i] = hs;
             hf_list[i] = hf;
