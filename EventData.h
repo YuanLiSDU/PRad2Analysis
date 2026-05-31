@@ -23,49 +23,32 @@ struct RawEventData {
 
     // HyCal per-channel data
     int          nch = 0;
-    uint16_t     module_id[kMaxChannels] = {};
-    uint8_t nsamples[kMaxChannels] = {};
+    uint16_t     module_id[kMaxChannels]   = {};
+    uint8_t      module_type[kMaxChannels] = {};   // ModuleType enum value
+    uint8_t      nsamples[kMaxChannels]    = {};
     uint16_t     samples[kMaxChannels][MAX_SAMPLES] = {};
-    float   ped_mean[kMaxChannels] = {};
-    float   ped_rms[kMaxChannels]  = {};
-    float   integral[kMaxChannels] = {};
-    float   gain_factor[kMaxChannels] = {};
+    float        gain_factor[kMaxChannels] = {};   // 1.0 for non-HyCal types
 
-    //Veto per-channel data
-    int          veto_nch = 0;
-    uint8_t veto_id[4]   = {}; // 1,2,3,4 for veto1-4
-    int veto_nsamples[4] = {};
-    uint16_t     veto_samples[4][MAX_SAMPLES] = {};
-    float   veto_ped_mean[4] = {};
-    float   veto_ped_rms[4]  = {};
-    float   veto_integral[4] = {};
-
-    //LMS reference PMT data
-    int lms_nch = 0;
-    uint8_t lms_id[4] = {}; // 1,2,3 for lms1-3, 0 for Pin
-    int lms_nsamples[4] = {};
-    uint16_t lms_samples[4][MAX_SAMPLES] = {};
-    float   lms_ped_mean[4] = {};
-    float   lms_ped_rms[4]  = {};
-    float   lms_integral[4] = {};
-
-    // Optional peak data
-    uint8_t npeaks[kMaxChannels] = {};
+    float   ped_mean[kMaxChannels]                       = {};
+    float   ped_rms[kMaxChannels]                        = {};
+    uint8_t ped_nused[kMaxChannels]                      = {};
+    uint8_t ped_quality[kMaxChannels]                    = {};
+    float   ped_slope[kMaxChannels]                      = {};
+    uint8_t npeaks[kMaxChannels]                         = {};
     float   peak_height[kMaxChannels][MAX_PEAKS]   = {};
     float   peak_time[kMaxChannels][MAX_PEAKS]     = {};
     float   peak_integral[kMaxChannels][MAX_PEAKS] = {};
+    uint8_t peak_quality[kMaxChannels][MAX_PEAKS]  = {};
 
-    //optional veto peak data
-    int veto_npeaks[4] = {};
-    float   veto_peak_height[4][MAX_PEAKS]   = {};
-    float   veto_peak_time[4][MAX_PEAKS]     = {};
-    float   veto_peak_integral[4][MAX_PEAKS] = {};
-
-    //optional LMS peak data
-    int lms_npeaks[4] = {};
-    float   lms_peak_height[4][MAX_PEAKS]   = {};
-    float   lms_peak_time[4][MAX_PEAKS]     = {};
-    float   lms_peak_integral[4][MAX_PEAKS] = {};
+    uint8_t daq_npeaks[kMaxChannels] = {};
+    float   daq_peak_vp[kMaxChannels][MAX_PEAKS]       = {};
+    float   daq_peak_integral[kMaxChannels][MAX_PEAKS] = {};
+    float   daq_peak_time[kMaxChannels][MAX_PEAKS]     = {};
+    int     daq_peak_cross[kMaxChannels][MAX_PEAKS]    = {};
+    int     daq_peak_pos[kMaxChannels][MAX_PEAKS]      = {};
+    int     daq_peak_coarse[kMaxChannels][MAX_PEAKS]   = {};
+    int     daq_peak_fine[kMaxChannels][MAX_PEAKS]     = {};
+    uint8_t daq_peak_quality[kMaxChannels][MAX_PEAKS]  = {};
 
     // GEM per-strip data
     int        gem_nch = 0;
