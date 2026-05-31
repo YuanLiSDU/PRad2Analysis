@@ -134,6 +134,7 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
 
                 float gain = ev.gain_factor[j];
                 float integral_soft = 0.f, integral_firm = 0.f;
+                float time_soft = 0.f;
 
                 const float t_min = 0.f;
                 const float t_max = 1000.f;
@@ -151,16 +152,18 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
                 if(best_p > 0){
                     integral_soft  = ev.peak_integral[j][best_p];
                     integral_soft *= gain;
+                    time_soft      = ev.peak_time[j][best_p];
                 }
                 integral_firm = ev.daq_peak_integral[j][0];
 
                 rawsum_soft += integral_soft * GetSoftFactor(mod_id);
                 rawsum_firm += integral_firm * GetFirmFactor(mod_id);
+
+                ht->Fill(time_soft);
             }
 
             hs->Fill(rawsum_soft);
             hf->Fill(rawsum_firm);
-            ht->Fill(best_height);
         }
         return {hs, hf, ht};
     };
