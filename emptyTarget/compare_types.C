@@ -7,10 +7,10 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "../../typeA.root",
-    const char *fileB = "../../typeB.root",
-    const char *fileC = "../../typeC.root",
-    const char *fileD = "../../typeC.root")
+    const char *fileA = "../data/empty_target/typeA_may31.root",
+    const char *fileB = "../data/empty_target/typeB_may31.root",
+    const char *fileC = "../data/empty_target/typeC_may31.root",
+    const char *fileD = "../data/empty_target/typeD_may31.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
     const char *paths[4] = { fileA, fileB, fileC, fileD };
@@ -111,8 +111,10 @@ void compare_types(
         mott_ratio[i]->SetMarkerColor(cfg_color[i]);
         mott_ratio[i]->SetMarkerStyle(20 + i);
         mott_ratio[i]->SetLineWidth(2);
+        mott_ratio[i]->SetStats(0);
         if (i == 0) {
-            mott_ratio[i]->GetYaxis()->SetRangeUser(0., mott_hi);
+            mott_ratio[i]->GetYaxis()->SetRangeUser(-0.002, 0.02);
+            mott_ratio[i]->GetXaxis()->SetRangeUser(0.5, 3.8);
             mott_ratio[i]->Draw("E");
         } else {
             mott_ratio[i]->Draw("E SAME");
@@ -150,26 +152,42 @@ void compare_types(
     for (int i = 0; i < 3; i++) leg2->AddEntry(moller_ratio[i], ratio_label[i], "PE");
     leg2->Draw();
 
+    int Arun = 24941, Brun = 24942, Crun = 24943, Drun = 24945;
+
+    TLatex *tex = new TLatex();
+    tex->SetNDC(1);
+    tex->SetTextSize(0.038);
+    cv->cd(1);
+    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
+    cv->cd(2);
+    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
+
     cv->SaveAs("compare_types.png");
 
-    // ── Second canvas: (B-C)/A and (B-C)/(A-B) ───────────────────────────
+    // ── Second canvas: (B-C)/(A-B) and (C-D)/(A-B) ───────────────────────
     // Numerator: B - C
     TH1F *mott_bmc   = (TH1F*)mott  [1]->Clone("mott_BminusC");
     TH1F *moller_bmc = (TH1F*)moller[1]->Clone("moller_BminusC");
     mott_bmc  ->Add(mott  [2], -1.);
     moller_bmc->Add(moller[2], -1.);
 
-    // (B-C)/A
-    TH1F *mott_bmc_over_a   = (TH1F*)mott_bmc  ->Clone("mott_BmC_over_A");
-    TH1F *moller_bmc_over_a = (TH1F*)moller_bmc->Clone("moller_BmC_over_A");
-    mott_bmc_over_a  ->Divide(mott_bmc,   mott  [0], 1., 1., "");
-    moller_bmc_over_a->Divide(moller_bmc, moller[0], 1., 1., "");
-
     // (B-C)/(A-B)
     TH1F *mott_bmc_over_amb   = (TH1F*)mott_bmc  ->Clone("mott_BmC_over_AmB");
     TH1F *moller_bmc_over_amb = (TH1F*)moller_bmc->Clone("moller_BmC_over_AmB");
     mott_bmc_over_amb  ->Divide(mott_bmc,   mott_denom,   1., 1., "");
     moller_bmc_over_amb->Divide(moller_bmc, moller_denom, 1., 1., "");
+
+    // Numerator: C - D
+    TH1F *mott_cmd   = (TH1F*)mott  [2]->Clone("mott_CminusD");
+    TH1F *moller_cmd = (TH1F*)moller[2]->Clone("moller_CminusD");
+    mott_cmd  ->Add(mott  [3], -1.);
+    moller_cmd->Add(moller[3], -1.);
+
+    // (C-D)/(A-B)
+    TH1F *mott_cmd_over_amb   = (TH1F*)mott_cmd  ->Clone("mott_CmD_over_AmB");
+    TH1F *moller_cmd_over_amb = (TH1F*)moller_cmd->Clone("moller_CmD_over_AmB");
+    mott_cmd_over_amb  ->Divide(mott_cmd,   mott_denom,   1., 1., "");
+    moller_cmd_over_amb->Divide(moller_cmd, moller_denom, 1., 1., "");
 
     // ── Fix correlated errors for (B-C)/(A-B) ────────────────────────────
     // B appears in both the numerator (B-C) and denominator (A-B).
@@ -192,9 +210,9 @@ void compare_types(
     }
 
     const int bmc_color[2] = { kBlue+1, kOrange+7 };
-    const char *bmc_label[2] = { "(B-C)/A", "(B-C)/(A-B)" };
-    TH1F *mott_bmc_set  [2] = { mott_bmc_over_a,   mott_bmc_over_amb   };
-    TH1F *moller_bmc_set[2] = { moller_bmc_over_a, moller_bmc_over_amb };
+    const char *bmc_label[2] = { "(B-C)/(A-B)", "(C-D)/(A-B)" };
+    TH1F *mott_bmc_set  [2] = { mott_bmc_over_amb,   mott_cmd_over_amb   };
+    TH1F *moller_bmc_set[2] = { moller_bmc_over_amb, moller_cmd_over_amb };
 
     TCanvas *cv2 = new TCanvas("c_compare_bmc", "(B-C) Ratios", 1200, 500);
     cv2->Divide(2, 1);
@@ -203,13 +221,15 @@ void compare_types(
     cv2->cd(1);
     auto [bmc_mott_lo, bmc_mott_hi] = yRange(mott_bmc_set, 2);
     for (int i = 0; i < 2; i++) {
-        mott_bmc_set[i]->SetTitle("Mott (B-C) Ratios;#theta (deg);Ratio");
+        mott_bmc_set[i]->SetTitle("Mott Ratios over (A-B);#theta (deg);Ratio");
         mott_bmc_set[i]->SetLineColor(bmc_color[i]);
         mott_bmc_set[i]->SetMarkerColor(bmc_color[i]);
         mott_bmc_set[i]->SetMarkerStyle(20 + i);
         mott_bmc_set[i]->SetLineWidth(2);
+        mott_bmc_set[i]->SetStats(0);
+        mott_bmc_set[i]->GetXaxis()->SetRangeUser(0.5, 3.8);
         if (i == 0) {
-            mott_bmc_set[i]->GetYaxis()->SetRangeUser(bmc_mott_lo, bmc_mott_hi);
+            mott_bmc_set[i]->GetYaxis()->SetRangeUser(-0.002, 0.02);
             mott_bmc_set[i]->Draw("E");
         } else {
             mott_bmc_set[i]->Draw("E SAME");
@@ -228,7 +248,7 @@ void compare_types(
         moller_bmc_set[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
     auto [bmc_mol_lo, bmc_mol_hi] = yRange(moller_bmc_set, 2);
     for (int i = 0; i < 2; i++) {
-        moller_bmc_set[i]->SetTitle("Moller (B-C) Ratios;#theta (deg);Ratio");
+        moller_bmc_set[i]->SetTitle("Moller Ratios over (A-B);#theta (deg);Ratio");
         moller_bmc_set[i]->SetLineColor(bmc_color[i]);
         moller_bmc_set[i]->SetMarkerColor(bmc_color[i]);
         moller_bmc_set[i]->SetMarkerStyle(20 + i);
@@ -246,6 +266,15 @@ void compare_types(
     TLegend *leg4 = new TLegend(0.65, 0.72, 0.92, 0.90);
     for (int i = 0; i < 2; i++) leg4->AddEntry(moller_bmc_set[i], bmc_label[i], "PE");
     leg4->Draw();
+    cv2->cd(1);
+    tex->DrawLatex(0.13, 0.86, "A:24424  B:24425  C:24426  D:24430");
+    cv2->cd(2);
+    tex->DrawLatex(0.13, 0.86, "A:24424  B:24425  C:24426  D:24430");
+
+    cv->cd(1);
+    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
+    cv->cd(2);
+    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
 
     cv2->SaveAs("compare_types_bmc.png");
 
@@ -257,10 +286,10 @@ void compare_types(
         mott_ratio  [i]->Write();
         moller_ratio[i]->Write();
     }
-    mott_bmc_over_a    ->Write();
-    moller_bmc_over_a  ->Write();
     mott_bmc_over_amb  ->Write();
     moller_bmc_over_amb->Write();
+    mott_cmd_over_amb  ->Write();
+    moller_cmd_over_amb->Write();
     cv ->Write();
     cv2->Write();
     fout->Close();
