@@ -1,6 +1,8 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
-#include "ROOT/TThreadExecutor.hxx"
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 const int max_files = 100;
 const int n_threads = 8;
@@ -103,84 +105,105 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
     ROOT::EnableThreadSafety();
     TH1::AddDirectory(false);
 
-    auto worker = [](const std::string& fname) -> std::array<TH1F*, 2> {
-        TFile fin(fname.c_str());
-        if(fin.IsZombie()) return {nullptr, nullptr};
-        TTree *tt = (TTree*)fin.Get("events");
-        if(!tt) return {nullptr, nullptr};
+    const size_t nF = file_list.size();
+    std::vector<TH1F*> hs_list(nF, nullptr), hf_list(nF, nullptr), ht_list(nF, nullptr);
+    std::atomic<size_t> next_idx{0};
+    std::atomic<size_t> done_cnt{0};
+    std::mutex log_mtx;
 
-        RawEventData ev;
-        setupRawBranches(tt, ev);
+    auto worker = [&](){
+        while(true){
+            size_t i = next_idx.fetch_add(1);
+            if(i >= nF) break;
+            const std::string& fname = file_list[i];
 
-        auto *hs = new TH1F("", "", 5000, 0.f, 5000.f);
-        auto *hf = new TH1F("", "", 5000, 0.f, 5000.f);
-        auto *ht = new TH1F("", "", 100, 0.f, 400.f);
+            TFile fin(fname.c_str());
+            if(fin.IsZombie()) continue;
+            TTree *tt = (TTree*)fin.Get("events");
+            if(!tt) continue;
 
-        Long64_t nE = tt->GetEntries();
-        for(Long64_t i = 0; i < nE; i++){
-            tt->GetEntry(i);
+            RawEventData ev;
+            setupRawBranches(tt, ev);
 
-            bool isPulser = (ev.trigger_bits & 1u << 15) != 0;
-            bool isRawsum = (ev.trigger_bits & 1u << 8) != 0;
-            if(!isPulser && !isRawsum) continue;
-            if(!isPulser) continue;
+            TH1F *hs = new TH1F("", "", 5000, 0.f, 5000.f);
+            TH1F *hf = new TH1F("", "", 5000, 0.f, 5000.f);
+            TH1F *ht = new TH1F("", "", 100, 0.f, 400.f);
 
-            float rawsum_soft = 0.f, rawsum_firm = 0.f;
+            Long64_t nE = tt->GetEntries();
+            for(Long64_t k = 0; k < nE; k++){
+                tt->GetEntry(k);
 
-            for(int j = 0; j < ev.nch; j++){
-                int mod_id = ev.module_id[j];
-                if(mod_id <= 1000 || mod_id >= 3000) continue;
-                mod_id -= 1000;
+                bool isPulser = (ev.trigger_bits & 1u << 15) != 0;
+                bool isRawsum = (ev.trigger_bits & 1u << 8) != 0;
+                if(!isPulser && !isRawsum) continue;
+                if(!isPulser) continue;
 
-                float gain = ev.gain_factor[j];
-                float integral_soft = 0.f, integral_firm = 0.f;
-                float time_soft = 0.f;
+                float rawsum_soft = 0.f, rawsum_firm = 0.f;
 
-                const float t_min = 0.f;
-                const float t_max = 1000.f;
-                int   best_p      = -1;
-                float best_height = -1.f;
-                for(int p = 0; p < ev.npeaks[j]; p++){
-                    float time = ev.peak_time[j][p];
-                    if(time < t_min || time > t_max) continue;
-                    float height = ev.peak_height[j][p];
-                    if(height > best_height){
-                        best_height = height;
-                        best_p      = p;
+                for(int j = 0; j < ev.nch; j++){
+                    int mod_id = ev.module_id[j];
+                    if(mod_id <= 1000 || mod_id >= 3000) continue;
+                    mod_id -= 1000;
+
+                    float gain = ev.gain_factor[j];
+                    float integral_soft = 0.f, integral_firm = 0.f;
+                    float time_soft = 0.f;
+
+                    const float t_min = 0.f;
+                    const float t_max = 1000.f;
+                    int   best_p      = -1;
+                    float best_height = -1.f;
+                    for(int p = 0; p < ev.npeaks[j]; p++){
+                        float time = ev.peak_time[j][p];
+                        if(time < t_min || time > t_max) continue;
+                        float height = ev.peak_height[j][p];
+                        if(height > best_height){
+                            best_height = height;
+                            best_p      = p;
+                        }
                     }
-                }
-                if(best_p > 0){
-                    integral_soft  = ev.peak_integral[j][best_p];
-                    integral_soft *= gain;
-                    time_soft      = ev.peak_time[j][best_p];
-                }
-                integral_firm = ev.daq_peak_integral[j][0];
+                    if(best_p > 0){
+                        integral_soft  = ev.peak_integral[j][best_p];
+                        integral_soft *= gain;
+                        time_soft      = ev.peak_time[j][best_p];
+                    }
+                    integral_firm = ev.daq_peak_integral[j][0];
 
-                rawsum_soft += integral_soft * GetSoftFactor(mod_id);
-                rawsum_firm += integral_firm * GetFirmFactor(mod_id);
+                    rawsum_soft += integral_soft * GetSoftFactor(mod_id);
+                    rawsum_firm += integral_firm * GetFirmFactor(mod_id);
 
-                ht->Fill(time_soft);
+                    ht->Fill(time_soft);
+                }
+
+                hs->Fill(rawsum_soft);
+                hf->Fill(rawsum_firm);
             }
+            hs_list[i] = hs;
+            hf_list[i] = hf;
+            ht_list[i] = ht;
 
-            hs->Fill(rawsum_soft);
-            hf->Fill(rawsum_firm);
+            size_t d = ++done_cnt;
+            std::lock_guard<std::mutex> lk(log_mtx);
+            std::cout << "[" << d << "/" << nF << "] done: " << fname << std::endl;
         }
-        return {hs, hf, ht};
     };
 
-    // ---- parallel map over files ----
-    ROOT::TThreadExecutor pool(n_threads);
-    auto results = pool.Map(worker, file_list);
+    // ---- launch threads ----
+    int nth = std::min<int>(n_threads, (int)nF);
+    std::vector<std::thread> threads;
+    threads.reserve(nth);
+    for(int t = 0; t < nth; t++) threads.emplace_back(worker);
+    for(auto& th : threads) th.join();
 
     // ---- merge results in main thread ----
     TH1::AddDirectory(true);
     TH1F *h_rawsum_soft = new TH1F("h_rawsum_soft", "RawSum from software peaks;RawSum;Counts", 5000, 0.f, 5000.f);
     TH1F *h_rawsum_firm = new TH1F("h_rawsum_firm", "RawSum from firmware peaks;RawSum;Counts", 5000, 0.f, 5000.f);
     TH1F *h_time_soft = new TH1F("h_time_soft", "Peak time distribution (software);Time (ns);Counts", 100, 0.f, 400.f);
-    for(auto& pr : results){
-        if(pr[0]){ h_rawsum_soft->Add(pr[0]); delete pr[0]; }
-        if(pr[1]){ h_rawsum_firm->Add(pr[1]); delete pr[1]; }
-        if(pr[2]){ h_time_soft->Add(pr[2]); delete pr[2]; }
+    for(size_t i = 0; i < nF; i++){
+        if(hs_list[i]){ h_rawsum_soft->Add(hs_list[i]); delete hs_list[i]; }
+        if(hf_list[i]){ h_rawsum_firm->Add(hf_list[i]); delete hf_list[i]; }
+        if(ht_list[i]){ h_time_soft->Add(ht_list[i]); delete ht_list[i]; }
     }
 
     TCanvas *c = new TCanvas("c", "RawSum Comparison", 1200, 600);
