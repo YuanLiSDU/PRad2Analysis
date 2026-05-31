@@ -114,6 +114,8 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
 
         float rawsum_soft = 0.f, rawsum_firm = 0.f;
 
+        if(!isPulser) continue; 
+
         for(int j = 0; j < ev.nch; j++){
             int mod_id = ev.module_id[j];
             if(mod_id <= 1000 || mod_id >= 3000) continue; // only look at W modules
@@ -157,9 +159,9 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
     TCanvas *c = new TCanvas("c", "RawSum Comparison", 1200, 600);
     c->Divide(2, 1);
     c->cd(1);
-    h_rawsum_soft->Draw();
+    h_rawsum_soft->Draw("E");
     c->cd(2);
-    h_rawsum_firm->Draw();
+    h_rawsum_firm->Draw("E");
     c->SaveAs("rand_trigger_comparison.png");
 
 }
