@@ -137,7 +137,7 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
                 bool isRawsum = (ev.trigger_bits & 1u << 8) != 0;
                 bool isAlpha  = (ev.trigger_bits & 1u << 25) != 0;
                 if(!isPulser && !isRawsum) continue;
-                if(!isPulser && !isAlpha) continue;
+                if(!isAlpha) continue;
 
                 float rawsum_soft = 0.f, rawsum_firm = 0.f;
 
