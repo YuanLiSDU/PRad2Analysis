@@ -1,7 +1,9 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
+#include "ROOT/TThreadExecutor.hxx"
 
 const int max_files = 100;
+const int n_threads = 8;
 
 // Load all "factor" values for W modules from a calibration JSON file into a
 // vector indexed by W number (idx 0 -> W1, idx 1 -> W2, ...). The JSON layout
@@ -71,11 +73,12 @@ float GetFirmFactor(int w_id, const char* json_file = "../calibration/calibratio
 }
 
 void rand_trigger(const char* input_dir = "../data/0.7GeV"){
-    //histogram want to look
-    TH1F *h_rawsum_soft = new TH1F("h_rawsum_soft", "RawSum from software peaks;RawSum;Counts", 5000, 0.f, 5000.f);
-    TH1F *h_rawsum_firm = new TH1F("h_rawsum_firm", "RawSum from firmware peaks;RawSum;Counts", 5000, 0.f, 5000.f);
+    // prime calibration caches in main thread (avoid race on first access)
+    GetSoftFactor(1);
+    GetFirmFactor(1);
 
-    TChain *t = new TChain("events");
+    // ---- collect input files ----
+    std::vector<std::string> file_list;
     TSystemDirectory dir(input_dir, input_dir);
     TList *files = dir.GetListOfFiles();
     if(!files){
@@ -83,77 +86,98 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
         return;
     }
     TIter next(files);
-    int file_count = 0;
     while(TSystemFile *file = (TSystemFile*)next()){
         if(file->IsDirectory()) continue;
         TString name = file->GetName();
         if(!name.EndsWith(".root")) continue;
-        TString full = TString::Format("%s/%s", input_dir, name.Data());
-        t->Add(full);
-        file_count++;
-        if(file_count >= max_files) break;
-        std::cout << "Added: " << full << std::endl;
+        file_list.emplace_back(Form("%s/%s", input_dir, name.Data()));
+        std::cout << "Added: " << file_list.back() << std::endl;
+        if((int)file_list.size() >= max_files) break;
     }
-    if(t->GetEntries() == 0){
-        std::cerr << "TChain has no entries, abort." << std::endl;
+    if(file_list.empty()){
+        std::cerr << "No root files found, abort." << std::endl;
         return;
     }
-    std::cout << "Total entries: " << t->GetEntries() << std::endl;
 
-    RawEventData ev;
-    setupRawBranches(t, ev);
+    // ---- per-file worker (runs on worker threads) ----
+    ROOT::EnableThreadSafety();
+    TH1::AddDirectory(false);
 
-    for (Long64_t i = 0; i < t->GetEntries(); i++) {
-        t->GetEntry(i);
-        if(i % 10000 == 0) std::cout << "Entry " << i << " / " << t->GetEntries() << "\r" << std::flush;
+    auto worker = [](const std::string& fname) -> std::array<TH1F*, 2> {
+        TFile fin(fname.c_str());
+        if(fin.IsZombie()) return {nullptr, nullptr};
+        TTree *tt = (TTree*)fin.Get("events");
+        if(!tt) return {nullptr, nullptr};
 
-        bool isPulser = (ev.trigger_bits & 1u << 15) != 0;
-        bool isRawsum = (ev.trigger_bits & 1u << 8) != 0;
-        
-        if(!isPulser && !isRawsum) continue; // only look at pulser and rawsum triggers
+        RawEventData ev;
+        setupRawBranches(tt, ev);
 
-        float rawsum_soft = 0.f, rawsum_firm = 0.f;
+        auto *hs = new TH1F("", "", 5000, 0.f, 5000.f);
+        auto *hf = new TH1F("", "", 5000, 0.f, 5000.f);
+        auto *ht = new TH1F("", "", 100, 0.f, 400.f);
 
-        if(!isPulser) continue; 
+        Long64_t nE = tt->GetEntries();
+        for(Long64_t i = 0; i < nE; i++){
+            tt->GetEntry(i);
 
-        for(int j = 0; j < ev.nch; j++){
-            int mod_id = ev.module_id[j];
-            if(mod_id <= 1000 || mod_id >= 3000) continue; // only look at W modules
-            mod_id -= 1000;
+            bool isPulser = (ev.trigger_bits & 1u << 15) != 0;
+            bool isRawsum = (ev.trigger_bits & 1u << 8) != 0;
+            if(!isPulser && !isRawsum) continue;
+            if(!isPulser) continue;
 
-            float gain = ev.gain_factor[j];
-            float integral_soft = 0.f, integral_firm = 0.f;
-            float time_soft = 0.f, time_firm = 0.f;
+            float rawsum_soft = 0.f, rawsum_firm = 0.f;
 
-            const float t_min = 100.f;
-            const float t_max = 200.f;
-            int    best_p      = -1;
-            float  best_height = -1.f;
-            for(int p = 0; p < ev.npeaks[j]; p++){
-                float time = ev.peak_time[j][p];
-                if(time < t_min || time > t_max) continue;
-                float height = ev.peak_height[j][p];
-                if(height > best_height){
-                    best_height = height;
-                    best_p      = p;
+            for(int j = 0; j < ev.nch; j++){
+                int mod_id = ev.module_id[j];
+                if(mod_id <= 1000 || mod_id >= 3000) continue;
+                mod_id -= 1000;
+
+                float gain = ev.gain_factor[j];
+                float integral_soft = 0.f, integral_firm = 0.f;
+
+                const float t_min = 0.f;
+                const float t_max = 1000.f;
+                int   best_p      = -1;
+                float best_height = -1.f;
+                for(int p = 0; p < ev.npeaks[j]; p++){
+                    float time = ev.peak_time[j][p];
+                    if(time < t_min || time > t_max) continue;
+                    float height = ev.peak_height[j][p];
+                    if(height > best_height){
+                        best_height = height;
+                        best_p      = p;
+                    }
                 }
+                if(best_p > 0){
+                    integral_soft  = ev.peak_integral[j][best_p];
+                    integral_soft *= gain;
+                }
+                integral_firm = ev.daq_peak_integral[j][0];
+
+                rawsum_soft += integral_soft * GetSoftFactor(mod_id);
+                rawsum_firm += integral_firm * GetFirmFactor(mod_id);
             }
-            if(best_p > 0){
-                integral_soft = ev.peak_integral[j][best_p];
-                integral_soft *= gain; // apply gain factor to get physical units
-                time_soft = ev.peak_time[j][best_p];
-            }
 
-            integral_firm = ev.daq_peak_integral[j][0]; // take the first DAQ peak
-            time_firm = ev.daq_peak_time[j][0];
-
-            rawsum_soft += integral_soft * GetSoftFactor(mod_id);
-            rawsum_firm += integral_firm * GetFirmFactor(mod_id);
-
+            hs->Fill(rawsum_soft);
+            hf->Fill(rawsum_firm);
+            ht->Fill(best_height);
         }
+        return {hs, hf, ht};
+    };
 
-        h_rawsum_soft->Fill(rawsum_soft);
-        h_rawsum_firm->Fill(rawsum_firm);
+    // ---- parallel map over files ----
+    ROOT::TThreadExecutor pool(n_threads);
+    auto results = pool.Map(worker, file_list);
+
+    // ---- merge results in main thread ----
+    TH1::AddDirectory(true);
+    TH1F *h_rawsum_soft = new TH1F("h_rawsum_soft", "RawSum from software peaks;RawSum;Counts", 5000, 0.f, 5000.f);
+    TH1F *h_rawsum_firm = new TH1F("h_rawsum_firm", "RawSum from firmware peaks;RawSum;Counts", 5000, 0.f, 5000.f);
+    TH1F *h_time_soft = new TH1F("h_time_soft", "Peak time distribution (software);Time (ns);Counts", 100, 0.f, 400.f);
+    for(auto& pr : results){
+        if(pr[0]){ h_rawsum_soft->Add(pr[0]); delete pr[0]; }
+        if(pr[1]){ h_rawsum_firm->Add(pr[1]); delete pr[1]; }
+        if(pr[2]){ h_time_soft->Add(pr[2]); delete pr[2]; }
     }
 
     TCanvas *c = new TCanvas("c", "RawSum Comparison", 1200, 600);
@@ -163,5 +187,9 @@ void rand_trigger(const char* input_dir = "../data/0.7GeV"){
     c->cd(2);
     h_rawsum_firm->Draw("E");
     c->SaveAs("rand_trigger_comparison.png");
+
+    TCanvas *c2 = new TCanvas("c2", "Software Peak Time Distribution", 600, 600);
+    h_time_soft->Draw("E");
+    c2->SaveAs("rand_trigger_time.png");
 
 }
