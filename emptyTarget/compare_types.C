@@ -61,7 +61,7 @@ void compare_types(
         mott_ratio  [i]->Divide(mott  [num_idx[i]], mott_denom,   1., 1., "");
         moller_ratio[i]->Divide(moller[num_idx[i]], moller_denom, 1., 1., "");
         mott_ratio  [i]->SetTitle("Mott Yield Ratio X/(A-B);#theta (deg);Ratio");
-        moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B);#theta (deg);Ratio");
+        moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B), 2GEMs matching;#theta (deg);Ratio");
     }
 
     // ── Fix correlated errors for B/(A-B) ────────────────────────────────
@@ -266,14 +266,10 @@ void compare_types(
     TLegend *leg4 = new TLegend(0.65, 0.72, 0.92, 0.90);
     for (int i = 0; i < 2; i++) leg4->AddEntry(moller_bmc_set[i], bmc_label[i], "PE");
     leg4->Draw();
-    cv2->cd(1);
-    tex->DrawLatex(0.13, 0.86, "A:24424  B:24425  C:24426  D:24430");
-    cv2->cd(2);
-    tex->DrawLatex(0.13, 0.86, "A:24424  B:24425  C:24426  D:24430");
 
-    cv->cd(1);
+    cv2->cd(1);
     tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
-    cv->cd(2);
+    cv2->cd(2);
     tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
 
     cv2->SaveAs("compare_types_bmc.png");
