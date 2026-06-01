@@ -11,6 +11,12 @@ const float binEdge[Nbins+1] = {
     3.392, 3.692, 3.992, 4.292
 };
 
+float gem_efficiency[Nbins] = {0.883383, 0.920705, 0.921194, 0.907423, 0.916365, 
+    0.928948, 0.921558, 0.918408, 0.917756, 0.908999, 0.900851, 0.898294, 0.901366,
+     0.884914, 0.881327, 0.881446, 0.875971, 0.864394, 0.850832, 0.855859, 0.867368,
+      0.865487, 0.825393, 0.791823, 0.831812, 0.851094, 0.853007, 0.85037, 0.827107,
+       0.822984, 0.852204, 0.840495, 0.822109};
+
 float Ebeam = 3484.f; // MeV
 float resolution = 0.033f;
 
@@ -173,7 +179,7 @@ static void fillHists(const std::vector<TString> &fnames,
                 if (isMott(E, Ebeam, resolution)) {
                     hits_mott->Fill(hit.x, hit.y);
                     E_angle_mott->Fill(theta, E);
-                    mott_yield->Fill(theta, 1./0.85);
+                    mott_yield->Fill(theta);
                 }
             }
         }
@@ -360,9 +366,12 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
 
         //geo acceptance correction
         yield /= geo_acceptance[i-1];
+        //gem efficiency correction
+        yield /= gem_efficiency[i-1];
 
         double err   = sqrt(pow(mott_yield->GetBinError(i), 2) + pow(mott_yield_B->GetBinError(i), 2)); // combine errors in quadrature
         err /= geo_acceptance[i-1]; // propagate acceptance correction to error
+        err /= gem_efficiency[i-1]; // propagate efficiency correction to error
 
         // dσ/dΩ = yield × (e/nC→1) / (density × dΩ),  e = 1.6e-19 C, 1 nC = 1e-9 C
         // lc cancels:  N_i/(L·dΩ) = (yield·lc) / (density·lc/1.6e-10 · dΩ)
