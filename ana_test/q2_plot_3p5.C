@@ -625,4 +625,4 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     fout_erecon->Close();
     std::cout << "Saved E_recon fits to E_recon_fits.root" << std::endl;
 
-
+}
