@@ -190,7 +190,8 @@ static void fillHists(const std::vector<TString> &fnames,
                     E_angle_mott->Fill(theta, E);
                     mott_yield->Fill(theta);
                     int bin = mott_yield->FindBin(theta);
-                    E_recon[bin-1]->Fill(E);
+                    if (bin >= 1 && bin <= Nbins)
+                        E_recon[bin-1]->Fill(E);
                 }
             }
         }
