@@ -147,7 +147,7 @@ void gem_eff(){
 
     cout << "GEM Efficiency Results:" << endl;
     for(int i=0; i<Nbins; i++){
-        cout << gem_eff->GetBinCenter(i+1) << ", ";
+        cout << gem_eff->GetBinContent(i+1) << ", ";
     }
 
 }
