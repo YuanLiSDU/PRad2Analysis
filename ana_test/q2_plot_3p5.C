@@ -581,6 +581,7 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     leg_GE->Draw();
     cv6->SaveAs("GE.png");
 
+    TCanvas *cv7 = new TCanvas();
     //fit E_recon in each bin to check energy reconstruction, save to ROOT file
     TFile *fout_erecon = TFile::Open("E_recon_fits.root", "RECREATE");
     for (int i = 0; i < Nbins; i++) {
@@ -616,7 +617,7 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
         pt->AddText(Form("#theta #in [%.3f, %.3f] deg", binEdge[i], binEdge[i+1]));
         pt->AddText(Form("Mean = %.2f #pm %.2f MeV", mean, mean_err));
         pt->AddText(Form("#sigma = %.2f #pm %.2f MeV", sigma, sigma_err));
-        pt->AddText(Form("#sigma/E = %.3f%%", sigma / mean * 100.));
+        pt->AddText(Form("#sigma/E*#sqrt{E(GeV)} = %.3f%%", sigma / mean * 100. * sqrt(mean / 1000.)));
         pt->Draw();
 
         fout_erecon->cd();
