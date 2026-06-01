@@ -145,4 +145,9 @@ void gem_eff(){
 
     c->SaveAs("gem_efficiency.png");
 
+    cout << "GEM Efficiency Results:" << endl;
+    for(int i=0; i<Nbins; i++){
+        cout << gem_eff->GetBinCenter(i+1) << ", ";
+    }
+
 }
