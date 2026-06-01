@@ -101,6 +101,14 @@ double GetArealDensity(double pressure_mTorr) {
     return 2.0 * n_mol * L;                            // H atoms/cm^2 (factor 2: H2 -> 2H)
 }
 
+bool Vetoed(float cl_time, float sci_time, float sci_int){
+    // Simple veto logic: if the cluster time is within a certain window of the scintillator time, and the scintillator signal is above a threshold, we consider it a vetoed event.
+    const float time_shift = 35.f; // ns
+    const float time_window = 7.f; // ns
+    const float int_threshold = 2000.f; // arbitrary units
+    return (fabs(cl_time - sci_time - time_shift) < time_window) && (sci_int > int_threshold);
+}
+
 // ── Fill histograms for one or more input files ───────────────────────────
 static void fillHists(const std::vector<TString> &fnames,
                       TH2F *hit_all, TH2F *E_angle,
@@ -108,6 +116,7 @@ static void fillHists(const std::vector<TString> &fnames,
                       TH2F *E_angle_mott, TH2F *E_angle_moller,
                       TH1F *mott_yield, TH1F *moller_yield,
                       TH1F *veto_time, TH1F *veto_int,
+                      TH1F *E_recon[Nbins],
                       float Ebeam)
 {
 
@@ -180,6 +189,8 @@ static void fillHists(const std::vector<TString> &fnames,
                     hits_mott->Fill(hit.x, hit.y);
                     E_angle_mott->Fill(theta, E);
                     mott_yield->Fill(theta);
+                    int bin = mott_yield->FindBin(theta);
+                    E_recon[bin-1]->Fill(E);
                 }
             }
         }
@@ -226,6 +237,10 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     TH1F *yield_ratio   = new TH1F("yield_ratio",     "e-p/Moller Yield Ratio;Theta (deg);Yield Ratio",   Nbins, binEdge);
     TH1F *veto_time = new TH1F("veto_time", "Cluster Time - Sci Time;Time Difference (ns);Counts", 100, -50, 50);
     TH1F *veto_int = new TH1F("veto_int", "Scintillator Integral;Integral (arb. units);Counts", 500, 0, 10000);
+    TH1F *E_recon[Nbins];
+    for (int i = 0; i < Nbins; i++) {
+        E_recon[i] = new TH1F(Form("E_recon_bin%d", i), Form("Reconstructed Energy (bin %d);Energy (MeV);Counts", i), 350, 0, Ebeam*1.1);
+    }
 
     TH2F *hit_all_B       = new TH2F("hit_all_B",        "Hit Position Distribution(all clusters, type B);X (mm);Y (mm)",                    600, -360, 360, 600, -360, 360);
     TH2F *E_angle_B       = new TH2F("E_angle_B",         "E vs Scattering Angle (type B);Scattering Angle (deg);Energy (MeV)",                120, 0, 6, 5000, 0, 5000);
@@ -238,12 +253,16 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     TH1F *yield_ratio_B = new TH1F("yield_ratio_B",     "e-p/Moller Yield Ratio (type B);Theta (deg);Yield Ratio",   Nbins, binEdge);
     TH1F *veto_time_B = new TH1F("veto_time_B", "Cluster Time - Sci Time (type B);Time Difference (ns);Counts", 100, -50, 50);
     TH1F *veto_int_B = new TH1F("veto_int_B", "Scintillator Integral (type B);Integral (arb. units);Counts", 500, 0, 10000);
+    TH1F *E_recon_B[Nbins];
+    for (int i = 0; i < Nbins; i++) {
+        E_recon_B[i] = new TH1F(Form("E_recon_B_bin%d", i), Form("Reconstructed Energy (type B, bin %d);Energy (MeV);Counts", i), 350, 0, Ebeam*1.1);
+    }
 
     fillHists(fileList, hit_all, E_angle, hits_mott, hits_moller, E_angle_mott, 
-        E_angle_moller, mott_yield, moller_yield, veto_time, veto_int, Ebeam);
+        E_angle_moller, mott_yield, moller_yield, veto_time, veto_int, E_recon, Ebeam);
     std::vector<TString> fileListB = {"../../B/24916_recon_filter.root"};
     fillHists(fileListB, hit_all_B, E_angle_B, hits_mott_B, hits_moller_B, E_angle_mott_B, 
-        E_angle_moller_B, mott_yield_B, moller_yield_B, veto_time_B, veto_int_B, Ebeam);
+        E_angle_moller_B, mott_yield_B, moller_yield_B, veto_time_B, veto_int_B, E_recon_B, Ebeam);
 
     // Scale yields by 1/livecharge so y-axis is yield per unit charge
     mott_yield  ->Scale(1.0 / lc);
@@ -561,7 +580,48 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     leg_GE->Draw();
     cv6->SaveAs("GE.png");
 
+    //fit E_recon in each bin to check energy reconstruction, save to ROOT file
+    TFile *fout_erecon = TFile::Open("E_recon_fits.root", "RECREATE");
+    for (int i = 0; i < Nbins; i++) {
+        if (E_recon[i]->GetEntries() < 100) continue; // skip bins with too few entries for a meaningful fit
+        double sigma_hint = Ebeam * resolution / sqrt(Ebeam / 1000.);
+        TF1 *fit = new TF1(Form("fit_bin%d", i), "gaus", Ebeam - 1*sigma_hint, Ebeam + 1*sigma_hint);
+        // gaus parameters: [0]=amplitude, [1]=mean, [2]=sigma
+        fit->SetParameters(E_recon[i]->GetMaximum(), Ebeam, sigma_hint);
+        fit->SetLineColor(kRed + 1);
+        fit->SetLineWidth(2);
+        E_recon[i]->Fit(fit, "RQ"); // R=range, Q=quiet (no delete: TF1 owned by histogram)
 
-}
+        double mean      = fit->GetParameter(1);
+        double sigma     = fit->GetParameter(2);
+        double mean_err  = fit->GetParError(1);
+        double sigma_err = fit->GetParError(2);
+        std::cout << "Bin " << i << " [" << binEdge[i] << "-" << binEdge[i+1] << " deg]"
+                  << ": mean = " << mean << " +/- " << mean_err << " MeV"
+                  << ", sigma = " << sigma << " +/- " << sigma_err << " MeV"
+                  << ", sigma/E = " << sigma/mean*100. << "%" << std::endl;
+
+        TCanvas *ctmp = new TCanvas(Form("c_erecon_bin%d", i),
+                                    Form("E_recon [%.3f-%.3f deg]", binEdge[i], binEdge[i+1]),
+                                    700, 500);
+        ctmp->SetGrid();
+        E_recon[i]->SetStats(0);
+        E_recon[i]->Draw();  // fit line drawn automatically (still in histogram's function list)
+
+        TPaveText *pt = new TPaveText(0.13, 0.62, 0.52, 0.88, "NDC");
+        pt->SetFillColor(0);
+        pt->SetBorderSize(1);
+        pt->SetTextAlign(12);
+        pt->AddText(Form("#theta #in [%.3f, %.3f] deg", binEdge[i], binEdge[i+1]));
+        pt->AddText(Form("Mean = %.2f #pm %.2f MeV", mean, mean_err));
+        pt->AddText(Form("#sigma = %.2f #pm %.2f MeV", sigma, sigma_err));
+        pt->AddText(Form("#sigma/E = %.3f%%", sigma / mean * 100.));
+        pt->Draw();
+
+        fout_erecon->cd();
+        ctmp->Write();
+    }
+    fout_erecon->Close();
+    std::cout << "Saved E_recon fits to E_recon_fits.root" << std::endl;
 
 
