@@ -1,10 +1,27 @@
 #!/usr/bin/env python3
 """
-Re-fit module energy histograms from CalibResult_iter8.root for config0 and config2,
+Re-fit module energy histograms from CalibResult_iterN.root for two configs,
 compute energy resolution = sigma / sqrt(ExpectedPeak), then:
   1) Plot 1-D resolution distributions for both configs on one figure
   2) Plot resolution maps for both configs with the same color range
 """
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ▶▶  USER INPUT — edit these two blocks to switch datasets  ◀◀
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Two input directories (each must contain fitting_parameters_iterN.dat
+# and CalibResult_iterN.root), the calibration iteration index for each,
+# and the display label that will appear in plots
+INPUT_A_DIR   = '../data/calib/Physics_calib/config0_5by5'
+INPUT_A_ITER  = 8
+INPUT_A_LABEL = 'old gain'
+
+INPUT_B_DIR   = '../data/calib/new_gain'
+INPUT_B_ITER  = 10
+INPUT_B_LABEL = 'new gain'
+
+# ══════════════════════════════════════════════════════════════════════════════
 
 import os
 import sys
@@ -21,15 +38,13 @@ import ROOT
 ROOT.gROOT.SetBatch(True)
 ROOT.gErrorIgnoreLevel = ROOT.kError
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-BASE   = os.path.dirname(os.path.abspath(__file__))
-CALIB  = os.path.join(BASE, '..', 'data', 'calib', 'Physics_calib')
-GEO    = os.path.join(BASE, '..', 'hycal_modules.json')
-ITER   = 8
+# ── Derived paths ─────────────────────────────────────────────────────────────
+BASE = os.path.dirname(os.path.abspath(__file__))
+GEO  = os.path.join(BASE, '..', 'hycal_modules.json')
 
 CONFIGS = {
-    'config0': os.path.join(CALIB, 'config0_5by5'),
-    'config2': os.path.join(CALIB, 'config2_5by5'),
+    INPUT_A_LABEL: (os.path.join(BASE, INPUT_A_DIR), INPUT_A_ITER),
+    INPUT_B_LABEL: (os.path.join(BASE, INPUT_B_DIR), INPUT_B_ITER),
 }
 
 # ── Plot control options ──────────────────────────────────────────────────────
@@ -84,22 +99,22 @@ def refit_gauss(hist, center, sigma_hint):
     g  = ROOT.TF1('gfit', 'gaus', lo, hi)
     g.SetParameters(hist.GetMaximum(), center, sigma_hint)
     status = hist.Fit(g, 'RQNS')   # R=range, Q=quiet, N=no store, S=save result
-    if status and status.IsValid():
+    if int(status) == 0:
         return g.GetParameter(1), abs(g.GetParameter(2))
     # Fallback: try with looser range (2 sigma)
-    lo2 = center - 2 * sigma_hint
-    hi2 = center + 2 * sigma_hint
+    lo2 = center - 1 * sigma_hint
+    hi2 = center + 1 * sigma_hint
     g2  = ROOT.TF1('gfit2', 'gaus', lo2, hi2)
     g2.SetParameters(hist.GetMaximum(), center, sigma_hint)
     status2 = hist.Fit(g2, 'RQNS')
-    if status2 and status2.IsValid():
+    if int(status2) == 0:
         return g2.GetParameter(1), abs(g2.GetParameter(2))
     return None, None
 
 # ── 3. Process one config ─────────────────────────────────────────────────────
-def process_config(config_dir):
-    dat_path  = os.path.join(config_dir, f'fitting_parameters_iter{ITER}.dat')
-    root_path = os.path.join(config_dir, f'CalibResult_iter{ITER}.root')
+def process_config(config_dir, iter_n):
+    dat_path  = os.path.join(config_dir, f'fitting_parameters_iter{iter_n}.dat')
+    root_path = os.path.join(config_dir, f'CalibResult_iter{iter_n}.root')
 
     params = parse_dat(dat_path)
     print(f"  Parsed {len(params)} modules from dat")
@@ -144,8 +159,8 @@ def build_outer_set(geo):
     """
     xs = sorted(set(round(m['x'], 1) for m in geo.values()))
     ys = sorted(set(round(m['y'], 1) for m in geo.values()))
-    outer_x = set(xs[:3] + xs[-3:])
-    outer_y = set(ys[:3] + ys[-3:])
+    outer_x = set(xs[:4] + xs[-4:])
+    outer_y = set(ys[:4] + ys[-4:])
     return {name for name, m in geo.items()
             if round(m['x'], 1) in outer_x or round(m['y'], 1) in outer_y}
 
@@ -167,9 +182,9 @@ def build_center_set(geo, n=6):
 def main():
     results  = {}   # cfg -> resolutions dict
     ratios   = {}   # cfg -> ratios dict
-    for cfg, cdir in CONFIGS.items():
-        print(f"Processing {cfg} ...")
-        results[cfg], ratios[cfg] = process_config(cdir)
+    for cfg, (cdir, iter_n) in CONFIGS.items():
+        print(f"Processing {cfg} (iter{iter_n}) ...")
+        results[cfg], ratios[cfg] = process_config(cdir, iter_n)
 
     geo = load_geometry(GEO)
     outer_set  = build_outer_set(geo)
@@ -190,7 +205,8 @@ def main():
 
     # ── Figure 1: 1-D distributions (inner modules only) ─────────────────────
     fig1, ax1 = plt.subplots(figsize=(8, 5))
-    colors = {'config0': 'steelblue', 'config2': 'tomato'}
+    _palette = ['steelblue', 'tomato']
+    colors = {cfg: _palette[i] for i, cfg in enumerate(CONFIGS)}
     for cfg, res in results.items():
         vals = [v for name, v in res.items() if name not in exclude_1d]
         ax1.hist(vals, bins=HIST1D_BINS, range=(h1d_lo, h1d_hi),

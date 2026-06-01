@@ -12,7 +12,7 @@ const float binEdge[Nbins+1] = {
 };
 
 float Ebeam = 728.9f; // MeV
-float resolution = 0.032f;
+float resolution = 0.033f;
 
 bool useGEMs = false;
 

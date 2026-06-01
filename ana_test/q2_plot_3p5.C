@@ -12,9 +12,17 @@ const float binEdge[Nbins+1] = {
 };
 
 float Ebeam = 3484.f; // MeV
-float resolution = 0.03f;
+float resolution = 0.033f;
 
 bool useGEMs = true;
+
+// Returns true if (x, y) [mm] lies inside the HyCal active acceptance:
+// outside the beam hole (2.5 module widths) and inside the outer edge (16 module widths).
+bool inHyCal(double xmm, double ymm) {
+    const double module = 20.75; // mm
+    return (fabs(xmm) > module * 2.5 || fabs(ymm) > module * 2.5)
+        && (fabs(xmm) < module * 16. && fabs(ymm) < module * 16.);
+}
 
 double GetEprime( double EBeam, double_t theta)//MeV
 {
@@ -87,14 +95,6 @@ double GetArealDensity(double pressure_mTorr) {
     return 2.0 * n_mol * L;                            // H atoms/cm^2 (factor 2: H2 -> 2H)
 }
 
-bool Vetoed(float cl_time, float sci_time, float sci_int){
-    // Simple veto logic: if the cluster time is within a certain window of the scintillator time, and the scintillator signal is above a threshold, we consider it a vetoed event.
-    const float time_shift = 35.f; // ns
-    const float time_window = 7.f; // ns
-    const float int_threshold = 2000.f; // arbitrary units
-    return (fabs(cl_time - sci_time - time_shift) < time_window) && (sci_int > int_threshold);
-}
-
 // ── Fill histograms for one or more input files ───────────────────────────
 static void fillHists(const std::vector<TString> &fnames,
                       TH2F *hit_all, TH2F *E_angle,
@@ -125,38 +125,14 @@ static void fillHists(const std::vector<TString> &fnames,
                 float E = ev.cl_energy[j];
                 float theta = atan2(std::sqrt(x*x + y*y), z) * 180.f / M_PI;
 
-                if( fabs(x) < 20.75 * 2.5 && fabs(y) < 20.75 * 2.5 ) continue;
-                if( fabs(x) > 20.75 * 16. || fabs(y) > 20.75 * 16. ) continue;
+                if( !inHyCal(x, y) ) continue;
 
-                if( ev.cl_nblocks[j] < 5 ) continue; // remove single-block clusters which are mostly noise
+                if( ev.cl_nblocks[j] < 4 ) continue; // remove single-block clusters which are mostly noise
 
                 hit_all->Fill(x, y);
                 E_angle->Fill(theta, E);
 
                 if (isMott(E, Ebeam, resolution)) {
-                    //find veto info for this cluster
-                    float cl_time = ev.cl_time[j];
-                    float sci_time = -999.f;
-                    float sci_int = -999.f;
-                    bool veto = false;
-                    //if(theta < 1.1f){
-                    /*for(int k = 0; k < ev.veto_nch; k++){
-                        for(int p = 0; p < ev.veto_npeaks[k]; p++){
-                            sci_time = ev.veto_peak_time[k][p];
-                            sci_int = ev.veto_peak_integral[k][p];
-                            if(cl_time-sci_time < 28.f || cl_time-sci_time > 42.f) continue;
-                            veto_time->Fill(cl_time - sci_time);
-                            veto_int->Fill(sci_int);
-                            if(Vetoed(cl_time, sci_time, sci_int)){
-                                veto = true;
-                                break;
-                            }
-                        }
-                    }*/
-                    //}
-                    //if(theta < 1.1f && ((fabs(x) > 20.75 * 2.1 && fabs(y) > 20.) || (fabs(y) > 20.75 * 2.1 && fabs(x) > 20.))) continue; // apply veto for low-theta clusters near the center
-                    //if(theta < 1.1f && veto) break; // apply veto for low-theta clusters
-                    //if(theta < 0.5f) break; 
                     hits_mott->Fill(x, y);
                     E_angle_mott->Fill(theta, E);
                     mott_yield->Fill(theta);
@@ -166,6 +142,7 @@ static void fillHists(const std::vector<TString> &fnames,
             if (ev.n_clusters == 2){
                 float x1 = ev.cl_x[0], y1 = ev.cl_y[0], z1 = ev.cl_z[0], E1 = ev.cl_energy[0];
                 float x2 = ev.cl_x[1], y2 = ev.cl_y[1], z2 = ev.cl_z[1], E2 = ev.cl_energy[1];
+                if (!inHyCal(x1, y1) || !inHyCal(x2, y2)) continue;
                 float theta1 = atan2(std::sqrt(x1*x1 + y1*y1), z1) * 180.f / M_PI;
                 float theta2 = atan2(std::sqrt(x2*x2 + y2*y2), z2) * 180.f / M_PI;
                 if (isMoller_kinematic(theta1, E1, theta2, E2, Ebeam, resolution)) {
@@ -188,10 +165,7 @@ static void fillHists(const std::vector<TString> &fnames,
                 float E = ev.mHit_E[j];
                 float theta = atan2(std::sqrt(hit.x*hit.x + hit.y*hit.y), hit.z) * 180.f / M_PI;
 
-                if( fabs(hit.x) < 20.75 * 2.5 && fabs(hit.y) < 20.75 * 2.5 ) continue;
-                if( fabs(hit.x) > 20.75 * 16. || fabs(hit.y) > 20.75 * 16. ) continue;
-
-                //if( ev.cl_nblocks[j] < 3 ) continue; // remove single-block clusters which are mostly noise
+                if( !inHyCal(hit.x, hit.y) ) continue;
 
                 hit_all->Fill(hit.x, hit.y);
                 E_angle->Fill(theta, E);
@@ -265,12 +239,6 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     fillHists(fileListB, hit_all_B, E_angle_B, hits_mott_B, hits_moller_B, E_angle_mott_B, 
         E_angle_moller_B, mott_yield_B, moller_yield_B, veto_time_B, veto_int_B, Ebeam);
 
-    TCanvas *cv_veto = new TCanvas("c_veto", "Veto Distributions", 1200, 500);
-    cv_veto->Divide(2, 2);
-    cv_veto->cd(1); veto_time->Draw();
-    cv_veto->cd(2); veto_int->Draw();
-    cv_veto->cd(3); veto_time_B->Draw();
-    cv_veto->cd(4); veto_int_B->Draw();
     // Scale yields by 1/livecharge so y-axis is yield per unit charge
     mott_yield  ->Scale(1.0 / lc);
     moller_yield ->Scale(1.0 / lc);
@@ -294,39 +262,16 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     cv1->cd(5); hits_moller ->Draw("COLZ");
     cv1->cd(6); E_angle_moller->Draw("COLZ");
     cv1->SaveAs("overview.png");
-
+    
+    //calculate corresponding Q2 values for angle bin edges
     double q2_edges[Nbins+1];
-    double geo_acceptance[Nbins];
     for (int i = 0; i <= Nbins; i++) {
         q2_edges[i] = GetQ2(binEdge[i] * M_PI / 180.f); // bin edges in Q2 space
     }
 
-    TH1F *cross_section = new TH1F("cross_section", "Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)", Nbins, q2_edges);
-    for (int i = 1; i <= mott_yield->GetNbinsX(); i++) {
-        // solid angle of this theta bin [sr]
-        double theta_low  = binEdge[i-1] * M_PI / 180.;
-        double theta_high = binEdge[i]   * M_PI / 180.;
-        double dOmega = 2. * M_PI * (cos(theta_low) - cos(theta_high));
-
-        double yield = mott_yield->GetBinContent(i);  // N_i / lc  [/nC]
-        yield -= mott_yield_B->GetBinContent(i); // subtract type B background
-        double err   = sqrt(pow(mott_yield->GetBinError(i), 2) + pow(mott_yield_B->GetBinError(i), 2)); // combine errors in quadrature
-
-        // dσ/dΩ = yield × (e/nC→1) / (density × dΩ),  e = 1.6e-19 C, 1 nC = 1e-9 C
-        // lc cancels:  N_i/(L·dΩ) = (yield·lc) / (density·lc/1.6e-10 · dΩ)
-        //            = yield · 1.6e-10 / (density · dΩ)   [cm²/sr]
-        // × 1e27 → mb/sr
-        const double e_over_nC  = 1.6e-19 / 1e-9;  // = 1.6e-10
-        const double cm2_to_mb  = 1e27;
-        if (dOmega > 0.) {
-            double dsig = yield * e_over_nC / (density * dOmega) * cm2_to_mb;
-            double derr = err   * e_over_nC / (density * dOmega) * cm2_to_mb;
-            cross_section->SetBinContent(i, dsig);
-            cross_section->SetBinError(i, derr);
-        }
-    }
-
     //Generator reference — read generator ntuple, same cuts, normalize by L_gen
+    //calculate acceptance correction for each bin: acceptance = N_accepted / N_generated in that bin
+    double geo_acceptance[Nbins];
     TH1F *gen_cross = nullptr;
     TH1F *acceptance_q2 = nullptr;
     {
@@ -341,7 +286,15 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
         {   
 
             TFile *gf = TFile::Open("../../../3.5GeV_e-.root");
+            if (!gf || gf->IsZombie()) {
+                std::cerr << "ERROR: cannot open 3.5GeV_e-.root" << std::endl;
+                return;
+            }
             TNtuple *nt = (TNtuple*)gf->Get("ntp");
+            if (!nt) {
+                std::cerr << "ERROR: ntuple 'ntp' not found in 3.5GeV_e-.root" << std::endl;
+                gf->Close(); return;
+            }
             Float_t E_l, theta_l, phi_l;
             nt->SetBranchAddress("E_l",     &E_l);
             nt->SetBranchAddress("theta_l", &theta_l);
@@ -355,11 +308,8 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
 
                 double x = 6270.f * tan(theta_l) * cos(phi_l);
                 double y = 6270.f * tan(theta_l) * sin(phi_l);
-                bool cuts = false;
                 float theta = theta_l * 180.f / M_PI;
-                //if(theta < 1.1f && ((fabs(x) > 20.75 * 2.1 && fabs(y) > 20.) || (fabs(y) > 20.75 * 2.1 && fabs(x) > 20.))) cuts = true;
-                if( (fabs(x) > 20.75 * 2.5 || fabs(y) > 20.75 * 2.5)
-                    && (fabs(x) < 20.75 * 16. && fabs(y) < 20.75 * 16.) && theta > 0.3f)
+                if( inHyCal(x, y) && theta > 0.3f )
                     in_acceptance[gen_raw->FindBin(theta_l * 180. / M_PI) - 1]++;
                 else out_acceptance[gen_raw->FindBin(theta_l * 180. / M_PI) - 1]++;
             }
@@ -386,153 +336,47 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
             double theta_low  = binEdge[i-1] * M_PI / 180.;
             double theta_high = binEdge[i]   * M_PI / 180.;
             double dOmega = 2.*M_PI*(cos(theta_low) - cos(theta_high));
+            double total_gen = in_acceptance[i-1] + out_acceptance[i-1];
             if (dOmega > 0.) {
-                geo_acceptance[i-1] = (in_acceptance[i-1]) / (in_acceptance[i-1] + out_acceptance[i-1]);
+                geo_acceptance[i-1] = (total_gen > 0.) ? in_acceptance[i-1] / total_gen : 0.;
                 acceptance_q2->SetBinContent(i, geo_acceptance[i-1] * 100.);
                 std::cout << "Bin " << i << ": theta [" << binEdge[i-1] << ", " << binEdge[i] << "] deg, "
                           << "Q2 [" << GetQ2(theta_high) << ", " << GetQ2(theta_low) << "] GeV^2, "
                           << "Acceptance = " << geo_acceptance[i-1] * 100. << " %" << std::endl;
             }
         }
-
     }
 
-    // Moller generator reference — read text file (9 columns per line):
-    //   E1  theta1  phi1  E2  theta2  phi2  gamaE  gamaTheta  gamaPhi
-    //   (energies MeV, angles rad)
-    TH1F *gen_moller_cs       = new TH1F("gen_moller_cs",       "Moller dσ/dΩ (gen);Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)", Nbins, q2_edges);
-    TH1F *double_arm_geo_acc  = new TH1F("double_arm_geo_acc",  "Moller Double-Arm Geometric Acceptance;Q^{2} (GeV^{2});Acceptance (%)", Nbins, q2_edges);
-    {
-        const double L_gen_nb  = 0.440658;            // [nb^-1]
-        const double L_gen_cm2 = L_gen_nb * 1e33;     // 1 nb = 1e-33 cm^2  ⇒  nb^-1 → cm^-2
-        const double cm2_to_mb = 1e27;
-        const double theta_min = 1.45     * M_PI / 180.;  // rad
-        const double theta_max = binEdge[Nbins] * M_PI / 180.;  // rad
+    // Calculate cross section from yield: dσ/dΩ = yield / (luminosity × dΩ)
+    TH1F *cross_section = new TH1F("cross_section", "Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)", Nbins, q2_edges);
+    for (int i = 1; i <= mott_yield->GetNbinsX(); i++) {
+        // solid angle of this theta bin [sr]
+        double theta_low  = binEdge[i-1] * M_PI / 180.;
+        double theta_high = binEdge[i]   * M_PI / 180.;
+        double dOmega = 2. * M_PI * (cos(theta_low) - cos(theta_high));
 
-        const char *fname_moller =
-            "../data/0.7GeV/ee_pass6_728.90MeV_5000000_theta_0.5_5.0_COMIN_50_COMAX_650_total_e-._0.440658nb-1dat";
-        std::ifstream fin(fname_moller);
-        if (!fin.is_open()) {
-            std::cerr << "ERROR: cannot open " << fname_moller << std::endl;
+        double yield = mott_yield->GetBinContent(i);  // N_i / lc  [/nC]
+        yield -= mott_yield_B->GetBinContent(i); // subtract type B background
+
+        //geo acceptance correction
+        yield /= geo_acceptance[i-1];
+
+        double err   = sqrt(pow(mott_yield->GetBinError(i), 2) + pow(mott_yield_B->GetBinError(i), 2)); // combine errors in quadrature
+        err /= geo_acceptance[i-1]; // propagate acceptance correction to error
+
+        // dσ/dΩ = yield × (e/nC→1) / (density × dΩ),  e = 1.6e-19 C, 1 nC = 1e-9 C
+        // lc cancels:  N_i/(L·dΩ) = (yield·lc) / (density·lc/1.6e-10 · dΩ)
+        //            = yield · 1.6e-10 / (density · dΩ)   [cm²/sr]
+        // × 1e27 → mb/sr
+        const double e_over_nC  = 1.6e-19 / 1e-9;  // = 1.6e-10
+        const double cm2_to_mb  = 1e27;
+        if (dOmega > 0.) {
+            double dsig = yield * e_over_nC / (density * dOmega) * cm2_to_mb;
+            double derr = err   * e_over_nC / (density * dOmega) * cm2_to_mb;
+            cross_section->SetBinContent(i, dsig);
+            cross_section->SetBinError(i, derr);
         }
-
-        TH1F *gen_moller_raw = new TH1F("gen_moller_raw", "", Nbins, q2_edges);
-        double m_in [Nbins] = {};
-        double m_out[Nbins] = {};
-
-        auto inHyCal = [](double xmm, double ymm) {
-            return (fabs(xmm) > 20.75 * 2.5 || fabs(ymm) > 20.75 * 2.5)
-                && (fabs(xmm) < 20.75 * 16. && fabs(ymm) < 20.75 * 16.);
-        };
-
-        float E1, theta1, phi1, E2, theta2, phi2, gE, gTh, gPh;
-        Long64_t nread = 0;
-        while (fin >> E1 >> theta1 >> phi1 >> E2 >> theta2 >> phi2 >> gE >> gTh >> gPh) {
-            nread++;
-            if (theta1 < theta_min || theta1 > theta_max) continue;
-            if (theta2 < theta_min || theta2 > theta_max) continue;
-
-            float E1s = E1 + gRandom->Gaus(0., E1 * resolution / sqrt(E1/1000.));
-            float E2s = E2 + gRandom->Gaus(0., E2 * resolution / sqrt(E2/1000.));
-            if (!isMoller_kinematic(theta1 * 180./M_PI, E1s,
-                                     theta2 * 180./M_PI, E2s, Ebeam, resolution)) continue;
-            
-            // Project to HyCal plane (z = 6270 mm)
-            double x1 = 6270. * tan(theta1) * cos(phi1);
-            double y1 = 6270. * tan(theta1) * sin(phi1);
-            double x2 = 6270. * tan(theta2) * cos(phi2);
-            double y2 = 6270. * tan(theta2) * sin(phi2);
-            bool both_in = inHyCal(x1, y1) && inHyCal(x2, y2);
-
-            // Fill cross-section histogram for both arms (per-arm dσ/dΩ)
-            double q2_1 = GetQ2(theta1);
-            double q2_2 = GetQ2(theta2);
-            gen_moller_raw->Fill(q2_1);
-            gen_moller_raw->Fill(q2_2);
-
-            int b1 = gen_moller_raw->FindBin(q2_1);
-            int b2 = gen_moller_raw->FindBin(q2_2);
-            if (b1 >= 1 && b1 <= Nbins) {
-                if(both_in) m_in[b1-1]++;
-                else        m_out[b1-1]++;
-            }
-            if (b2 >= 1 && b2 <= Nbins) {
-                if(both_in) m_in[b2-1]++;
-                else        m_out[b2-1]++;
-            }
-        }
-        fin.close();
-        std::cout << "Moller generator: read " << nread
-                  << " events, " << gen_moller_raw->GetEntries()/2.
-                  << " pass cuts" << std::endl;
-
-        // dσ/dΩ per bin (single-arm, summed over both electrons)
-        for (int i = 1; i <= Nbins; i++) {
-            double theta_low  = binEdge[i-1] * M_PI / 180.;
-            double theta_high = binEdge[i]   * M_PI / 180.;
-            double dOmega = 2. * M_PI * (cos(theta_low) - cos(theta_high));
-            double N = gen_moller_raw->GetBinContent(i);
-            if (dOmega > 0.) {
-                gen_moller_cs->SetBinContent(i, N / (L_gen_cm2 * dOmega) * cm2_to_mb);
-                gen_moller_cs->SetBinError  (i, sqrt(N) / (L_gen_cm2 * dOmega) * cm2_to_mb);
-            }
-            double tot = m_in[i-1] + m_out[i-1];
-            double eff = (tot > 0.) ? m_in[i-1] / tot : 0.;
-            double eff_err = (tot > 0.) ? sqrt(eff * (1. - eff) / tot) : 0.;
-            double_arm_geo_acc->SetBinContent(i, eff * 100.);
-            double_arm_geo_acc->SetBinError  (i, eff_err * 100.);
-            std::cout << "Moller bin " << i
-                      << ": Q2 [" << GetQ2(theta_high) << ", " << GetQ2(theta_low) << "] GeV^2,"
-                      << " dσ/dΩ = " << gen_moller_cs->GetBinContent(i) << " mb/sr,"
-                      << " double-arm acc = " << eff * 100. << " %" << std::endl;
-        }
-        delete gen_moller_raw;
     }
-
-    // Calculate yield ratio and its error
-    for (int i = 1; i <= Nbins; i++) {
-        double ep_acc = geo_acceptance[i-1];
-        double ee_acc = double_arm_geo_acc->GetBinContent(i) / 100.;
-        double mott = mott_yield->GetBinContent(i) - mott_yield_B->GetBinContent(i); // subtract type B background
-        double moller = moller_yield->GetBinContent(i) - moller_yield_B->GetBinContent(i); // subtract type B background
-        mott /= ep_acc; // correct for acceptance
-        moller /= ee_acc; // correct for acceptance
-        double ratio = (moller > 0) ? mott / moller : 0;
-        //if(yield_ratio->GetBinCenter(i) < 1.6 || yield_ratio->GetBinCenter(i) > 2.9) ratio = 0; // only keep ratio in the 1.6-2.9 degree region where Moller yield is significant
-        yield_ratio->SetBinContent(i, ratio);
-        double mott_err = sqrt(pow(mott_yield->GetBinError(i), 2) + pow(mott_yield_B->GetBinError(i), 2)) / ep_acc; // combine errors in quadrature and correct for acceptance
-        double moller_err = sqrt(pow(moller_yield->GetBinError(i), 2) + pow(moller_yield_B->GetBinError(i), 2)) / ee_acc; // combine errors in quadrature and correct for acceptance
-        double ratio_err = (moller > 0) ? ratio * sqrt(pow(mott_err/mott, 2) + pow(moller_err/moller, 2)) : 0;
-        yield_ratio->SetBinError(i, ratio_err);
-    }
-
-    // Calculate cross section from ep/ee ratio and generator Moller cross section
-    TH1F *cross_section_from_ratio = new TH1F("cross_section_from_ratio", "Cross Section from Yield Ratio;Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)", Nbins, q2_edges);
-    for (int i = 1; i <= Nbins; i++) {
-        double ratio = yield_ratio->GetBinContent(i);
-        double ratio_err = yield_ratio->GetBinError(i);
-        double moller_cs = gen_moller_cs->GetBinContent(i);
-        double moller_cs_err = gen_moller_cs->GetBinError(i);
-        double cs = ratio * moller_cs;
-        double cs_err = cs * sqrt(pow(ratio_err/ratio, 2) + pow(moller_cs_err/moller_cs, 2));
-        cross_section_from_ratio->SetBinContent(i, cs);
-        cross_section_from_ratio->SetBinError(i, cs_err);
-    }
-
-    TCanvas *moller_cv = new TCanvas("c_moller_cs", "Moller Cross Section (Generator)", 900, 700);
-    gen_moller_cs->SetStats(0);
-    gen_moller_cs->SetMarkerStyle(20);
-    gen_moller_cs->SetMarkerSize(1.0);
-    gen_moller_cs->SetTitle("Moller Scattering Cross Section from Generator");
-    gen_moller_cs->Draw("E1P");
-
-    TCanvas *acc_cv = new TCanvas("c_double_arm_acc", "Moller Double-Arm Geometric Acceptance", 900, 700);
-    double_arm_geo_acc->SetStats(0);
-    double_arm_geo_acc->SetMarkerStyle(20);
-    double_arm_geo_acc->SetMarkerSize(1.0);
-    double_arm_geo_acc->SetTitle("Moller Double-Arm Geometric Acceptance");
-    double_arm_geo_acc->GetYaxis()->SetRangeUser(0., 105);
-    double_arm_geo_acc->Draw("E1P");
 
     TCanvas *cv2 = new TCanvas("c_mott", "Mott Yield", 900, 700);
     cv2->SetGrid();
@@ -558,13 +402,6 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     }
 
     TCanvas *cv3 = new TCanvas("c_cross", "Mott Cross Section", 1400, 900);
-    for(int i = 1; i <= cross_section->GetNbinsX(); i++) {
-        double acc = geo_acceptance[i-1];
-        if (acc > 0.) {
-            cross_section->SetBinContent(i, cross_section->GetBinContent(i) / acc);
-            cross_section->SetBinError(i, cross_section->GetBinError(i) / acc);
-        }
-    }
     // Upper pad: cross section
     TPad *pad_top = new TPad("pad_top", "", 0., 0.3, 1., 1.);
     pad_top->SetBottomMargin(0.02);
@@ -588,17 +425,10 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     gen_cross->SetMarkerColor(kRed + 1);
     gen_cross->Draw("E1P SAME");
 
-    cross_section_from_ratio->SetStats(0);
-    cross_section_from_ratio->SetLineColor(kGreen + 1);
-    cross_section_from_ratio->SetMarkerStyle(25);
-    cross_section_from_ratio->SetMarkerColor(kGreen + 1);
-    cross_section_from_ratio->Draw("E1P SAME");
-
     TLegend *leg = new TLegend(0.60, 0.65, 0.88, 0.88);
     leg->SetBorderSize(0);
     leg->AddEntry(cross_section, "Data (measured lumi)", "lp");
     leg->AddEntry(gen_cross,     "Generator (L_{gen})",  "lp");
-    leg->AddEntry(cross_section_from_ratio, "From Yield Ratio", "lp");
     leg->Draw();
 
     cv3->cd();
@@ -663,7 +493,6 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     TH1F *GE = new TH1F("GE", "Electric Form Factor;Q^{2} (GeV^{2});G_{E}", Nbins, q2_edges);
     TH1F *GE_gen = new TH1F("GE_gen", "Kelly Electric Form Factor;Q^{2} (GeV^{2});G_{E}", Nbins, q2_edges);
     TH1F *GE_theory = new TH1F("GE_theory", "Kelly Electric Form Factor;Q^{2} (GeV^{2});G_{E}", Nbins, q2_edges);
-    TH1F *GE_from_ratio = new TH1F("GE_from_ratio", "Electric Form Factor from Yield Ratio;Q^{2} (GeV^{2});G_{E}", Nbins, q2_edges);
     for (int i = 1; i <= GE_theory->GetNbinsX(); i++) {
         double theta = (binEdge[i-1] + binEdge[i]) / 2. * M_PI / 180.; // bin center in radians
         double Q2 = GetQ2(theta);
@@ -698,20 +527,6 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
         double dGE_dCS = 0.5 * (1. + tau) / sqrt(arg) / mott;
         GE->SetBinError(i, dCS * fabs(dGE_dCS));
     }
-    for (int i = 1; i <= cross_section_from_ratio->GetNbinsX(); i++) {
-        double theta = (binEdge[i-1] + binEdge[i]) / 2. * M_PI / 180.; // bin center in radians
-        double CS_mb = cross_section_from_ratio->GetBinContent(i); // in mb/sr
-        double GM  = GetKellyGM(GetQ2(theta));
-        double eps = GetEpsilon(theta);
-        double tau = GetTau(theta);
-        double mott = GetMottCS(theta);
-        double arg = (1. + tau) * CS_mb / mott - tau / eps * GM * GM;
-        if (CS_mb <= 0. || arg <= 0.) { GE_from_ratio->SetBinContent(i, 0.); GE_from_ratio->SetBinError(i, 0.); continue; }
-        GE_from_ratio->SetBinContent(i, sqrt(arg));
-        double dCS = cross_section_from_ratio->GetBinError(i);
-        double dGE_dCS = 0.5 * (1. + tau) / sqrt(arg) / mott;
-        GE_from_ratio->SetBinError(i, dCS * fabs(dGE_dCS));
-    }
     TCanvas *cv6 = new TCanvas("c_GE", "Electric Form Factor G_E", 900, 700);
     cv6->SetGrid();
     cv6->SetLogx();
@@ -728,17 +543,12 @@ void q2_plot(const char *files = "../../A/24917_recon_filter.root",
     GE_theory->SetLineColor(kGreen + 2);
     GE_theory->SetLineStyle(2);
     GE_theory->Draw("L SAME");
-    GE_from_ratio->SetStats(0);
-    GE_from_ratio->SetLineColor(kBlue + 1);
-    GE_from_ratio->SetMarkerStyle(25);
-    GE_from_ratio->SetMarkerColor(kBlue + 1);
-    //GE_from_ratio->Draw("P SAME");
+   
     TLegend *leg_GE = new TLegend(0.60, 0.65, 0.88, 0.88);
     leg_GE->SetBorderSize(0);
     leg_GE->AddEntry(GE, "Data (measured lumi)", "lp");
     leg_GE->AddEntry(GE_gen, "Kelly Parametrization", "lp");
     leg_GE->AddEntry(GE_theory, "Kelly Parametrization (theory)", "l");
-    //leg_GE->AddEntry(GE_from_ratio, "From Yield Ratio", "lp");
     leg_GE->Draw();
     cv6->SaveAs("GE.png");
 
