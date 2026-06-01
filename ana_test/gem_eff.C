@@ -42,7 +42,7 @@ void gem_eff(){
     TH1F *gem_down_eff = new TH1F("gem_down_eff", "Downstream GEM Efficiency;Theta (deg);Efficiency", Nbins, binEdge);
     TH1F *gem_eff = new TH1F("gem_eff", "Overall GEM Efficiency;Theta (deg);Efficiency", Nbins, binEdge);
 
-    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
+    for (Long64_t i = 0; i < tree->GetEntries()/100; i++) {
         if (i % 10000 == 0)
             std::cout << "  " << i << " / " << tree->GetEntries() << "\r" << std::flush;
         tree->GetEntry(i);
@@ -116,20 +116,24 @@ void gem_eff(){
         gem_eff->SetBinError(i+1, overall_err);
     }
 
-    TCanvas *c = new TCanvas("c", "GEM Efficiency", 1200, 400);
+    TCanvas *c = new TCanvas("c", "GEM Efficiency", 1200, 600);
     c->SetGrid();
     gem_up_eff->SetLineColor(kRed);
     gem_up_eff->SetMarkerColor(kRed);
     gem_up_eff->SetMarkerStyle(20);
     gem_up_eff->SetTitle("GEM Efficiency;Theta (deg);Efficiency");
+    gem_up_eff->SetStats(0);
+    gem_up_eff->GetYaxis()->SetRangeUser(0.7, 1.05);
     gem_up_eff->Draw("E1P");
     gem_down_eff->SetLineColor(kBlue);
     gem_down_eff->SetMarkerColor(kBlue);
     gem_down_eff->SetMarkerStyle(20);
+    gem_down_eff->SetStats(0);
     gem_down_eff->Draw("E1P SAME");
     gem_eff->SetLineColor(kBlack);
     gem_eff->SetMarkerColor(kBlack);
     gem_eff->SetMarkerStyle(20);
+    gem_eff->SetStats(0);
     gem_eff->Draw("E1P SAME");
 
     TLegend *leg = new TLegend(0.70, 0.15, 0.92, 0.40);
