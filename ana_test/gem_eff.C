@@ -92,7 +92,7 @@ void gem_eff(){
             int bin = gem_eff->FindBin(theta);
             gem_up_should[bin-1]++;
 
-            if(ev.matchFlag[0] & (1<<0 | 1<<1)) // also matched with GEM0 or GEM1
+            if(ev.matchFlag[0] & (1<<2 | 1<<3)) // also matched with GEM2 or GEM3 (upstream)
                 gem_up_count[bin-1]++;
         }
 
@@ -131,6 +131,14 @@ void gem_eff(){
     gem_eff->SetMarkerColor(kBlack);
     gem_eff->SetMarkerStyle(20);
     gem_eff->Draw("E1P SAME");
+
+    TLegend *leg = new TLegend(0.70, 0.15, 0.92, 0.40);
+    leg->SetBorderSize(0);
+    leg->AddEntry(gem_up_eff,   "Upstream GEM",   "lp");
+    leg->AddEntry(gem_down_eff, "Downstream GEM", "lp");
+    leg->AddEntry(gem_eff,      "Overall",        "lp");
+    leg->Draw();
+
     c->SaveAs("gem_efficiency.png");
 
 }
