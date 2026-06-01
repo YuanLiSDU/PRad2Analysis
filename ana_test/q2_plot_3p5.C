@@ -183,7 +183,7 @@ static void fillHists(const std::vector<TString> &fnames,
     delete tree;
 };
 
-void q2_plot(const char *files = "../../A/24917_recon_filter.root",
+void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
                 double lc = 4639600./10.){
 
     double lc_B = 2292700;
