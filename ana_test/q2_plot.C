@@ -583,7 +583,26 @@ void q2_plot(const char *files = "../data/0.7GeV/prad_024640_filter.root",
     leg_GE->Draw();
     cv6->SaveAs("GE.png");
 
+    // ── Save all histograms and canvases to ROOT file ─────────────────────
+    TFile *fout = TFile::Open("q2_plot_output.root", "RECREATE");
+    // type-A histograms
+    hit_all->Write();  E_angle->Write();
+    hits_mott->Write(); hits_moller->Write();
+    E_angle_mott->Write(); E_angle_moller->Write();
+    mott_yield->Write(); moller_yield->Write(); yield_ratio->Write();
+    // type-B histograms
+    hit_all_B->Write(); E_angle_B->Write();
+    hits_mott_B->Write(); hits_moller_B->Write();
+    E_angle_mott_B->Write(); E_angle_moller_B->Write();
+    mott_yield_B->Write(); moller_yield_B->Write(); yield_ratio_B->Write();
+    // physics results
+    gen_cross->Write(); acceptance_q2->Write();
+    cross_section->Write(); rel_err->Write(); bg_ratio->Write();
+    GE->Write(); GE_gen->Write(); GE_theory->Write();
+    // canvases
+    cv1->Write(); cv2->Write(); cv2_moller->Write(); cv2_ratio->Write();
+    cv3->Write(); cv4->Write(); cv5->Write(); cv6->Write();
+    fout->Close();
+    std::cout << "Saved all histograms and canvases to q2_plot_output.root" << std::endl;
 
 }
-
-

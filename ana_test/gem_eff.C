@@ -9,8 +9,8 @@ const float binEdge[Nbins+1] = {
     3.392, 3.692, 3.992, 4.292
 };
 
-float Ebeam = 3484.f; // MeV
-float resolution = 0.033f;
+float Ebeam = 700.f; // MeV
+float resolution = 0.04f;
 
 // Returns true if (x, y) [mm] lies inside the HyCal active acceptance:
 // outside the beam hole (2.5 module widths) and inside the outer edge (16 module widths).
@@ -22,7 +22,7 @@ bool inHyCal(double xmm, double ymm) {
 
 void gem_eff(){
 
-    TFile *f = TFile::Open("../../A/24917_recon_filter.root");
+    TFile *f = TFile::Open("../data/0.7GeV/prad_024640_filter.root");
     if (!f || f->IsZombie()) {
         std::cerr << "ERROR: cannot open file" << std::endl;
         return;
