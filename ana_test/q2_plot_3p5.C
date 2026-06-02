@@ -92,7 +92,7 @@ double GetGE(double theta, double CS_mb){
 //              beam travels along the cylinder axis.
 double GetArealDensity(double pressure_mTorr) {
     const double kB  = 1.380649e-16; // Boltzmann constant [erg/K = dyn·cm/K]
-    const double T   = 19.0;         // cell temperature [K]
+    const double T   = 20.0;         // cell temperature [K]
     const double L   = 4.0;          // cell length along beam axis [cm]
     // 1 mTorr = 1.33322 dyn/cm^2
     const double mTorr_to_dyncm2 = 1.33322;
@@ -185,13 +185,14 @@ static void fillHists(const std::vector<TString> &fnames,
                 hit_all->Fill(hit.x, hit.y);
                 E_angle->Fill(theta, E);
 
+                int bin = mott_yield->FindBin(theta);
+                if (bin >= 1 && bin <= Nbins)
+                    E_recon[bin-1]->Fill(E);
+
                 if (isMott(E, Ebeam, resolution)) {
                     hits_mott->Fill(hit.x, hit.y);
                     E_angle_mott->Fill(theta, E);
                     mott_yield->Fill(theta);
-                    int bin = mott_yield->FindBin(theta);
-                    if (bin >= 1 && bin <= Nbins)
-                        E_recon[bin-1]->Fill(E);
                 }
             }
         }
@@ -581,9 +582,25 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     leg_GE->Draw();
     cv6->SaveAs("GE.png");
 
-    TCanvas *cv7 = new TCanvas();
-    //fit E_recon in each bin to check energy reconstruction, save to ROOT file
-    TFile *fout_erecon = TFile::Open("E_recon_fits.root", "RECREATE");
+    // ── Save all histograms and canvases to ROOT file ─────────────────────
+    TFile *fout = TFile::Open("q2_plot_output.root", "RECREATE");
+    // type-A histograms
+    hit_all->Write();  E_angle->Write();
+    hits_mott->Write(); hits_moller->Write();
+    E_angle_mott->Write(); E_angle_moller->Write();
+    mott_yield->Write(); moller_yield->Write(); yield_ratio->Write();
+    // type-B histograms
+    hit_all_B->Write(); E_angle_B->Write();
+    hits_mott_B->Write(); hits_moller_B->Write();
+    E_angle_mott_B->Write(); E_angle_moller_B->Write();
+    mott_yield_B->Write(); moller_yield_B->Write(); yield_ratio_B->Write();
+    // physics results
+    gen_cross->Write(); acceptance_q2->Write();
+    cross_section->Write(); rel_err->Write(); bg_ratio->Write();
+    GE->Write(); GE_gen->Write(); GE_theory->Write();
+    // canvases
+    cv1->Write(); cv2->Write(); cv2_moller->Write(); cv2_ratio->Write();
+    cv3->Write(); cv4->Write(); cv5->Write(); cv6->Write();
     for (int i = 0; i < Nbins; i++) {
         if (E_recon[i]->GetEntries() < 100) continue; // skip bins with too few entries for a meaningful fit
         double sigma_hint = Ebeam * resolution / sqrt(Ebeam / 1000.);
@@ -620,10 +637,10 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
         pt->AddText(Form("#sigma/E*#sqrt{E(GeV)} = %.3f%%", sigma / mean * 100. * sqrt(mean / 1000.)));
         pt->Draw();
 
-        fout_erecon->cd();
+        fout->cd();
         ctmp->Write();
     }
-    fout_erecon->Close();
-    std::cout << "Saved E_recon fits to E_recon_fits.root" << std::endl;
+    fout->Close();
+    std::cout << "Saved all histograms and canvases to q2_plot_output.root" << std::endl;
 
 }

@@ -7,10 +7,10 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "../data/empty_target/typeA_may31.root",
-    const char *fileB = "../data/empty_target/typeB_may31.root",
-    const char *fileC = "../data/empty_target/typeC_may31.root",
-    const char *fileD = "../data/empty_target/typeD_may31.root")
+    const char *fileA = "../data/empty_target/typeA_may31_gem.root",
+    const char *fileB = "../data/empty_target/typeB_may31_gem.root",
+    const char *fileC = "../data/empty_target/typeC_may31_gem.root",
+    const char *fileD = "../data/empty_target/typeD_may31_gem.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
     const char *paths[4] = { fileA, fileB, fileC, fileD };
@@ -60,8 +60,8 @@ void compare_types(
         moller_ratio[i] = (TH1F*)moller[num_idx[i]]->Clone(Form("moller_ratio_%s", ratio_label[i]));
         mott_ratio  [i]->Divide(mott  [num_idx[i]], mott_denom,   1., 1., "");
         moller_ratio[i]->Divide(moller[num_idx[i]], moller_denom, 1., 1., "");
-        mott_ratio  [i]->SetTitle("Mott Yield Ratio X/(A-B);#theta (deg);Ratio");
-        moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B), 2GEMs matching;#theta (deg);Ratio");
+        mott_ratio  [i]->SetTitle("Background Ratio of e-p Events;Reconstructed Scattering Angle [deg];N_{background} / N_{signal} (%)");
+        moller_ratio[i]->SetTitle("Moller Yield Ratio X/(A-B), 2GEMs matching;Reconstructed Scattering Angle [deg];N_{background} / N_{signal} (%)");
     }
 
     // ── Fix correlated errors for B/(A-B) ────────────────────────────────
@@ -79,6 +79,11 @@ void compare_types(
         };
         fixBoverAmB(mott_ratio  [0], mott  [0], mott  [1]);
         fixBoverAmB(moller_ratio[0], moller[0], moller[1]);
+    }
+    // Scale to percent
+    for (int i = 0; i < 3; i++) {
+        mott_ratio  [i]->Scale(100.);
+        moller_ratio[i]->Scale(100.);
     }
 
     // ── Draw ─────────────────────────────────────────────────────────────
@@ -105,6 +110,7 @@ void compare_types(
 
     // --- Mott ---
     cv->cd(1);
+    gPad->SetLogx();
     auto [mott_lo, mott_hi] = yRange(mott_ratio, 3);
     for (int i = 0; i < 3; i++) {
         mott_ratio[i]->SetLineColor(cfg_color[i]);
@@ -113,8 +119,16 @@ void compare_types(
         mott_ratio[i]->SetLineWidth(2);
         mott_ratio[i]->SetStats(0);
         if (i == 0) {
-            mott_ratio[i]->GetYaxis()->SetRangeUser(-0.002, 0.02);
+            mott_ratio[i]->GetYaxis()->SetRangeUser(-0.2, 2.0);
             mott_ratio[i]->GetXaxis()->SetRangeUser(0.5, 3.8);
+            mott_ratio[i]->GetXaxis()->CenterTitle();
+            mott_ratio[i]->GetYaxis()->CenterTitle();
+            mott_ratio[i]->GetXaxis()->SetTitleSize(0.045);
+            mott_ratio[i]->GetYaxis()->SetTitleSize(0.045);
+            mott_ratio[i]->GetXaxis()->SetTitleOffset(0.9);
+            mott_ratio[i]->GetYaxis()->SetTitleOffset(0.9);
+            mott_ratio[i]->GetXaxis()->SetMoreLogLabels();
+            mott_ratio[i]->GetXaxis()->SetNoExponent();
             mott_ratio[i]->Draw("E");
         } else {
             mott_ratio[i]->Draw("E SAME");
@@ -126,10 +140,11 @@ void compare_types(
     line_mott->SetLineStyle(2); line_mott->SetLineColor(kGray+1); line_mott->Draw();
     TLegend *leg1 = new TLegend(0.65, 0.72, 0.92, 0.90);
     for (int i = 0; i < 3; i++) leg1->AddEntry(mott_ratio[i], ratio_label[i], "PE");
-    leg1->Draw();
+    // leg1 drawn later after bmc overlay
 
     // --- Moller (double-arm range: 1.6 -- 3.0 deg) ---
     cv->cd(2);
+    gPad->SetLogx();
     for (int i = 0; i < 3; i++)
         moller_ratio[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
     auto [mol_lo, mol_hi] = yRange(moller_ratio, 3);
@@ -140,6 +155,14 @@ void compare_types(
         moller_ratio[i]->SetLineWidth(2);
         if (i == 0) {
             moller_ratio[i]->GetYaxis()->SetRangeUser(0., mol_hi);
+            moller_ratio[i]->GetXaxis()->CenterTitle();
+            moller_ratio[i]->GetYaxis()->CenterTitle();
+            moller_ratio[i]->GetXaxis()->SetTitleSize(0.045);
+            moller_ratio[i]->GetYaxis()->SetTitleSize(0.045);
+            moller_ratio[i]->GetXaxis()->SetTitleOffset(0.9);
+            moller_ratio[i]->GetYaxis()->SetTitleOffset(0.9);
+            moller_ratio[i]->GetXaxis()->SetMoreLogLabels();
+            moller_ratio[i]->GetXaxis()->SetNoExponent();
             moller_ratio[i]->Draw("E");
         } else {
             moller_ratio[i]->Draw("E SAME");
@@ -150,7 +173,7 @@ void compare_types(
     line_mol->SetLineStyle(2); line_mol->SetLineColor(kGray+1); line_mol->Draw();
     TLegend *leg2 = new TLegend(0.65, 0.72, 0.92, 0.90);
     for (int i = 0; i < 3; i++) leg2->AddEntry(moller_ratio[i], ratio_label[i], "PE");
-    leg2->Draw();
+    // leg2 drawn later after bmc overlay
 
     int Arun = 24941, Brun = 24942, Crun = 24943, Drun = 24945;
 
@@ -158,13 +181,11 @@ void compare_types(
     tex->SetNDC(1);
     tex->SetTextSize(0.038);
     cv->cd(1);
-    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
+    //tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
     cv->cd(2);
-    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
+    //tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
 
-    cv->SaveAs("compare_types.png");
-
-    // ── Second canvas: (B-C)/(A-B) and (C-D)/(A-B) ───────────────────────
+    // ── Overlay (B-C)/(A-B) and (C-D)/(A-B) on the same pads ────────────
     // Numerator: B - C
     TH1F *mott_bmc   = (TH1F*)mott  [1]->Clone("mott_BminusC");
     TH1F *moller_bmc = (TH1F*)moller[1]->Clone("moller_BminusC");
@@ -190,8 +211,6 @@ void compare_types(
     moller_cmd_over_amb->Divide(moller_cmd, moller_denom, 1., 1., "");
 
     // ── Fix correlated errors for (B-C)/(A-B) ────────────────────────────
-    // B appears in both the numerator (B-C) and denominator (A-B).
-    // Correct: σ_f = sqrt((B-C)²σ_A² + (A-C)²σ_B² + (A-B)²σ_C²) / (A-B)²
     {
         auto fixBmCoverAmB = [](TH1F *hratio, TH1F *hA, TH1F *hB, TH1F *hC) {
             for (int b = 1; b <= hratio->GetNbinsX(); b++) {
@@ -208,71 +227,49 @@ void compare_types(
         fixBmCoverAmB(mott_bmc_over_amb,   mott  [0], mott  [1], mott  [2]);
         fixBmCoverAmB(moller_bmc_over_amb, moller[0], moller[1], moller[2]);
     }
+    // Scale to percent
+    mott_bmc_over_amb  ->Scale(100.);
+    moller_bmc_over_amb->Scale(100.);
+    mott_cmd_over_amb  ->Scale(100.);
+    moller_cmd_over_amb->Scale(100.);
 
     const int bmc_color[2] = { kBlue+1, kOrange+7 };
     const char *bmc_label[2] = { "(B-C)/(A-B)", "(C-D)/(A-B)" };
     TH1F *mott_bmc_set  [2] = { mott_bmc_over_amb,   mott_cmd_over_amb   };
     TH1F *moller_bmc_set[2] = { moller_bmc_over_amb, moller_cmd_over_amb };
 
-    TCanvas *cv2 = new TCanvas("c_compare_bmc", "(B-C) Ratios", 1200, 500);
-    cv2->Divide(2, 1);
-
-    // Mott
-    cv2->cd(1);
-    auto [bmc_mott_lo, bmc_mott_hi] = yRange(mott_bmc_set, 2);
+    // Mott pad — overlay bmc series
+    cv->cd(1);
     for (int i = 0; i < 2; i++) {
-        mott_bmc_set[i]->SetTitle("Mott Ratios over (A-B);#theta (deg);Ratio");
         mott_bmc_set[i]->SetLineColor(bmc_color[i]);
         mott_bmc_set[i]->SetMarkerColor(bmc_color[i]);
-        mott_bmc_set[i]->SetMarkerStyle(20 + i);
+        mott_bmc_set[i]->SetMarkerStyle(24 + i);
         mott_bmc_set[i]->SetLineWidth(2);
         mott_bmc_set[i]->SetStats(0);
-        mott_bmc_set[i]->GetXaxis()->SetRangeUser(0.5, 3.8);
-        if (i == 0) {
-            mott_bmc_set[i]->GetYaxis()->SetRangeUser(-0.002, 0.02);
-            mott_bmc_set[i]->Draw("E");
-        } else {
-            mott_bmc_set[i]->Draw("E SAME");
-        }
+        mott_bmc_set[i]->Draw("E SAME");
     }
-    TLine *line_mott2 = new TLine(mott_bmc_set[0]->GetXaxis()->GetXmin(), 0.,
-                                   mott_bmc_set[0]->GetXaxis()->GetXmax(), 0.);
-    line_mott2->SetLineStyle(2); line_mott2->SetLineColor(kGray+1); line_mott2->Draw();
-    TLegend *leg3 = new TLegend(0.65, 0.72, 0.92, 0.90);
-    for (int i = 0; i < 2; i++) leg3->AddEntry(mott_bmc_set[i], bmc_label[i], "PE");
-    leg3->Draw();
+    TLine *line_mott2 = new TLine(mott_ratio[0]->GetXaxis()->GetXmin(), 0.,
+                                   mott_ratio[0]->GetXaxis()->GetXmax(), 0.);
+    line_mott2->SetLineStyle(3); line_mott2->SetLineColor(kGray+1); line_mott2->Draw();
+    for (int i = 0; i < 2; i++) leg1->AddEntry(mott_bmc_set[i], bmc_label[i], "PE");
+    leg1->Draw();
 
-    // Moller (double-arm range)
-    cv2->cd(2);
-    for (int i = 0; i < 2; i++)
-        moller_bmc_set[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
-    auto [bmc_mol_lo, bmc_mol_hi] = yRange(moller_bmc_set, 2);
+    // Moller pad — overlay bmc series
+    cv->cd(2);
     for (int i = 0; i < 2; i++) {
-        moller_bmc_set[i]->SetTitle("Moller Ratios over (A-B);#theta (deg);Ratio");
         moller_bmc_set[i]->SetLineColor(bmc_color[i]);
         moller_bmc_set[i]->SetMarkerColor(bmc_color[i]);
-        moller_bmc_set[i]->SetMarkerStyle(20 + i);
+        moller_bmc_set[i]->SetMarkerStyle(24 + i);
         moller_bmc_set[i]->SetLineWidth(2);
-        if (i == 0) {
-            moller_bmc_set[i]->GetYaxis()->SetRangeUser(bmc_mol_lo, bmc_mol_hi);
-            moller_bmc_set[i]->Draw("E");
-        } else {
-            moller_bmc_set[i]->Draw("E SAME");
-        }
+        moller_bmc_set[i]->Draw("E SAME");
     }
-    TLine *line_mol2 = new TLine(moller_bmc_set[0]->GetXaxis()->GetXmin(), 0.,
-                                  moller_bmc_set[0]->GetXaxis()->GetXmax(), 0.);
-    line_mol2->SetLineStyle(2); line_mol2->SetLineColor(kGray+1); line_mol2->Draw();
-    TLegend *leg4 = new TLegend(0.65, 0.72, 0.92, 0.90);
-    for (int i = 0; i < 2; i++) leg4->AddEntry(moller_bmc_set[i], bmc_label[i], "PE");
-    leg4->Draw();
+    TLine *line_mol2 = new TLine(moller_ratio[0]->GetXaxis()->GetXmin(), 0.,
+                                  moller_ratio[0]->GetXaxis()->GetXmax(), 0.);
+    line_mol2->SetLineStyle(3); line_mol2->SetLineColor(kGray+1); line_mol2->Draw();
+    for (int i = 0; i < 2; i++) leg2->AddEntry(moller_bmc_set[i], bmc_label[i], "PE");
+    leg2->Draw();
 
-    cv2->cd(1);
-    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
-    cv2->cd(2);
-    tex->DrawLatex(0.13, 0.86, Form("A:%d  B:%d  C:%d  D:%d", Arun, Brun, Crun, Drun));
-
-    cv2->SaveAs("compare_types_bmc.png");
+    cv->SaveAs("compare_types.png");
 
     // ── Save to ROOT file ─────────────────────────────────────────────────
     TFile *fout = TFile::Open("compare_types_output.root", "RECREATE");
@@ -286,8 +283,7 @@ void compare_types(
     moller_bmc_over_amb->Write();
     mott_cmd_over_amb  ->Write();
     moller_cmd_over_amb->Write();
-    cv ->Write();
-    cv2->Write();
+    cv->Write();
     fout->Close();
     std::cout << "Saved to compare_types_output.root" << std::endl;
 
