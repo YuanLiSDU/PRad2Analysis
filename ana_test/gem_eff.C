@@ -108,22 +108,22 @@ void gem_eff(){
         float down_err = (gem_down_should[i] > 0) ? sqrt(down_eff * (1 - down_eff) / gem_down_should[i]) : 0.f;
         float overall_err = sqrt(pow(up_err * down_eff, 2) + pow(down_err * up_eff, 2)); // propagate errors for product of two independent variables
 
-        gem_up_eff->SetBinContent(i+1, up_eff);
-        gem_up_eff->SetBinError(i+1, up_err);
-        gem_down_eff->SetBinContent(i+1, down_eff);
-        gem_down_eff->SetBinError(i+1, down_err);
-        gem_eff->SetBinContent(i+1, overall_eff);
-        gem_eff->SetBinError(i+1, overall_err);
+        gem_up_eff->SetBinContent(i+1, up_eff*100.f);
+        gem_up_eff->SetBinError(i+1, up_err*100.f);
+        gem_down_eff->SetBinContent(i+1, down_eff*100.f);
+        gem_down_eff->SetBinError(i+1, down_err*100.f);
+        gem_eff->SetBinContent(i+1, overall_eff*100.f);
+        gem_eff->SetBinError(i+1, overall_err*100.f);
     }
 
-    TCanvas *c = new TCanvas("c", "GEM Efficiency", 1200, 600);
+    TCanvas *c = new TCanvas("c", "GEM Efficiency", 800, 800);
     c->SetGrid();
     gem_up_eff->SetLineColor(kRed);
     gem_up_eff->SetMarkerColor(kRed);
     gem_up_eff->SetMarkerStyle(20);
-    gem_up_eff->SetTitle("GEM Efficiency;Theta (deg);Efficiency");
+    gem_up_eff->SetTitle("GEM Efficiency(include spacers & dead areas);Reconstructed Scattering Angle (deg);Efficiency [%]");
     gem_up_eff->SetStats(0);
-    gem_up_eff->GetYaxis()->SetRangeUser(0.7, 1.05);
+    gem_up_eff->GetYaxis()->SetRangeUser(70, 105);
     gem_up_eff->Draw("E1P");
     gem_down_eff->SetLineColor(kBlue);
     gem_down_eff->SetMarkerColor(kBlue);
@@ -138,9 +138,9 @@ void gem_eff(){
 
     TLegend *leg = new TLegend(0.70, 0.15, 0.92, 0.40);
     leg->SetBorderSize(0);
-    leg->AddEntry(gem_up_eff,   "Upstream GEM",   "lp");
-    leg->AddEntry(gem_down_eff, "Downstream GEM", "lp");
-    leg->AddEntry(gem_eff,      "Overall",        "lp");
+    leg->AddEntry(gem_up_eff,   "Upstream GEMs",   "lp");
+    leg->AddEntry(gem_down_eff, "Downstream GEMs", "lp");
+    leg->AddEntry(gem_eff,      "2 matching detection",        "lp");
     leg->Draw();
 
     c->SaveAs("gem_efficiency.png");

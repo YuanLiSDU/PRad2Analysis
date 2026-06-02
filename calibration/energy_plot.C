@@ -92,7 +92,7 @@ void energy_plot(){
         75, -0.5, 0.5, 75, -0.5, 0.5);
 
     TH2F *mod_E_xy_gem = new TH2F("E_xy_gem",
-        Form("Gaus fit mean/E_{exp} per %d#times%d Block in %s (GEM);x_{d};y_{d};E_{fit}/E_{exp}", blocks, blocks, mod.name.Data()),
+        "Energy Nonuniformity Pattern(Module W633);Normalized Module Width;Normalized Module Width;E_{rec}/E_{exp}",
         blocks, -0.5, 0.5, blocks, -0.5, 0.5);
     TProfile2D *mod_Eexp_xy_gem = new TProfile2D("Eexp_xy_gem",
         "Average E_{exp} per block (GEM);x_{d};y_{d};E_{exp} (MeV)",
@@ -217,7 +217,7 @@ void energy_plot(){
             gfit_gem->SetParameters(mod_E_bloclk_gem[bx][by]->GetMaximum(), eexp, sigma_hint);
             mod_E_bloclk_gem[bx][by]->Fit(gfit_gem, "RQ0");
             if(gfit_gem->GetParameter(2) > 0)
-                mod_E_xy_gem->SetBinContent(bx+1, by+1, gfit_gem->GetParameter(1) / eexp);
+                mod_E_xy_gem->SetBinContent(bx+1, by+1, gfit_gem->GetParameter(1) / eexp); // E_rec / E_exp
         }
     }
     TH1F *mod_E_corrected = new TH1F("mod_E_corrected", Form("Energy for %s after block-wise correction;Energy (MeV);Counts", mod.name.Data()), 420, 0, 4200);
@@ -281,10 +281,25 @@ void energy_plot(){
     TCanvas *c10 = new TCanvas("c10", "Delta Y between HyCal and GEM", 800, 700);
     mod_delta_y->Draw("colz");
 
-    TCanvas *c7 = new TCanvas("c7", Form("E_rec/E_exp map for %s (GEM projection)", mod.name.Data()), 800, 700);
-    gStyle->SetPaintTextFormat(".3f");
-    mod_E_xy_gem->SetMarkerSize(2.0);
-    mod_E_xy_gem->Draw("colz text");
+    TCanvas *c7 = new TCanvas("c7", Form("Energy Nonuniformity Pattern for %s (GEM projection)", mod.name.Data()), 900, 800);
+    c7->SetLeftMargin(0.10);
+    c7->SetBottomMargin(0.10);
+    c7->SetRightMargin(0.05);
+    gStyle->SetPalette(kRainBow);
+    mod_E_xy_gem->SetStats(0);
+    mod_E_xy_gem->GetXaxis()->SetTitleSize(0.04);
+    mod_E_xy_gem->GetYaxis()->SetTitleSize(0.04);
+    mod_E_xy_gem->GetZaxis()->SetTitleSize(0.04);
+    mod_E_xy_gem->GetXaxis()->SetTitleOffset(1.8);
+    mod_E_xy_gem->GetYaxis()->SetTitleOffset(2.0);
+    mod_E_xy_gem->GetZaxis()->SetTitleOffset(1.3);
+    mod_E_xy_gem->GetXaxis()->CenterTitle();
+    mod_E_xy_gem->GetYaxis()->CenterTitle();
+    mod_E_xy_gem->GetZaxis()->CenterTitle();
+    mod_E_xy_gem->Draw("LEGO2Z");  // 3D colored blocks with Z-palette
+    gPad->SetTheta(30.);
+    gPad->SetPhi(40.);
+    gPad->Update();
 
     TCanvas *c11 = new TCanvas("c11", "Delta X between HyCal and GEM (projected)", 800, 700);
     mod_delta_x_proj->Draw("HIST");

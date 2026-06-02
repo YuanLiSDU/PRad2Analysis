@@ -34,12 +34,12 @@ void vertex_recon(){
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
-    TH1F *h_vz  = new TH1F("h_vz",  "Vertex Z from closest approach;z_{vtx} (mm);Counts", 1000, -3500, 6500);
+    TH1F *h_vz  = new TH1F("h_vz",  "Reconstructed Vertex Z of e-p Events at 3.5 GeV;z_{vertex} (mm);Counts", 500, -3500, 6500);
     TH1F *h_dca = new TH1F("h_dca", "Track-to-beam DCA;DCA (mm);Counts", 600, 0, 60);
 
-    TH1F *h_vz_1deg = new TH1F("h_vz_1deg",  "Vertex Z from closest approach (theta~1deg);z_{vtx} (mm);Counts", 1000, -3500, 6500);
-    TH1F *h_vz_2deg = new TH1F("h_vz_2deg",  "Vertex Z from closest approach (theta~2deg);z_{vtx} (mm);Counts", 1000, -3500, 6500);
-    TH1F *h_vz_3deg = new TH1F("h_vz_3deg",  "Vertex Z from closest approach (theta~3deg);z_{vtx} (mm);Counts", 1000, -3500, 6500);
+    TH1F *h_vz_1deg = new TH1F("h_vz_1deg",  "Vertex Z from closest approach (theta~1deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_2deg = new TH1F("h_vz_2deg",  "Vertex Z from closest approach (theta~2deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_3deg = new TH1F("h_vz_3deg",  "Vertex Z from closest approach (theta~3deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
 
     for (Long64_t i = 0; i < tree->GetEntries(); i++) {
         tree->GetEntry(i);
@@ -100,6 +100,10 @@ void vertex_recon(){
     h_vz_1deg->SetLineColor(kRed);
     h_vz_2deg->SetLineColor(kGreen+2);
     h_vz_3deg->SetLineColor(kBlue);
+    h_vz->SetLineWidth(2.5);
+    h_vz_1deg->SetLineWidth(2.5);
+    h_vz_2deg->SetLineWidth(2.5);
+    h_vz_3deg->SetLineWidth(2.5);
 
     c->cd(1);
     h_vz->Draw();
