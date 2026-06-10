@@ -22,7 +22,7 @@ bool inHyCal(double xmm, double ymm) {
 
 void gem_eff(){
 
-    TFile *f = TFile::Open("../data/0.7GeV/prad_024640_filter.root");
+    TFile *f = TFile::Open("../data/recon/0.7GeV/prad_024662_recon.root");
     if (!f || f->IsZombie()) {
         std::cerr << "ERROR: cannot open file" << std::endl;
         return;
@@ -42,7 +42,12 @@ void gem_eff(){
     TH1F *gem_down_eff = new TH1F("gem_down_eff", "Downstream GEM Efficiency;Theta (deg);Efficiency", Nbins, binEdge);
     TH1F *gem_eff = new TH1F("gem_eff", "Overall GEM Efficiency;Theta (deg);Efficiency", Nbins, binEdge);
 
-    for (Long64_t i = 0; i < tree->GetEntries()/100; i++) {
+    TH2F *gem_up_hit_should = new TH2F("gem_up_hit_should", "Upstream GEM hit distribution (should);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
+    TH2F *gem_up_hit_count = new TH2F("gem_up_hit_count", "Upstream GEM hit distribution (count);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
+    TH2F *gem_down_hit_should = new TH2F("gem_down_hit_should", "Downstream GEM hit distribution (should);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
+    TH2F *gem_down_hit_count = new TH2F("gem_down_hit_count", "Downstream GEM hit distribution (count);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
+
+    for (Long64_t i = 0; i < tree->GetEntries()/5; i++) {
         if (i % 10000 == 0)
             std::cout << "  " << i << " / " << tree->GetEntries() << "\r" << std::flush;
         tree->GetEntry(i);
@@ -68,9 +73,12 @@ void gem_eff(){
             float theta = atan2(std::sqrt(x*x + y*y), z) * 180.f / M_PI;
             int bin = gem_eff->FindBin(theta);
             gem_down_should[bin-1]++;
+            gem_down_hit_should->Fill(x, y);
 
-            if(ev.matchFlag[0] & (1<<0 | 1<<1)) // also matched with GEM0 or GEM1
+            if(ev.matchFlag[0] & (1<<0 | 1<<1)){ // also matched with GEM0 or GEM1
                 gem_down_count[bin-1]++;
+                gem_down_hit_count->Fill(x, y);
+            }
         }
 
         //one cluster with downstream GEM(0,1) match
@@ -91,9 +99,12 @@ void gem_eff(){
             float theta = atan2(std::sqrt(x*x + y*y), z) * 180.f / M_PI;
             int bin = gem_eff->FindBin(theta);
             gem_up_should[bin-1]++;
+            gem_up_hit_should->Fill(x, y);
 
-            if(ev.matchFlag[0] & (1<<2 | 1<<3)) // also matched with GEM2 or GEM3 (upstream)
+            if(ev.matchFlag[0] & (1<<2 | 1<<3)){ // also matched with GEM2 or GEM3 (upstream)
                 gem_up_count[bin-1]++;
+                gem_up_hit_count->Fill(x, y);
+            }
         }
 
     }
@@ -149,5 +160,19 @@ void gem_eff(){
     for(int i=0; i<Nbins; i++){
         cout << gem_eff->GetBinContent(i+1) << ", ";
     }
+
+    TCanvas *c2 = new TCanvas("c2", "Upstream GEM Hit Distributions", 1200, 500);
+    c2->Divide(2,1);
+    c2->cd(1);
+    gem_up_hit_should->Draw("colz");
+    c2->cd(2);
+    gem_up_hit_count->Draw("colz");
+
+    TCanvas *c3 = new TCanvas("c3", "Downstream GEM Hit Distributions", 1200, 500);
+    c3->Divide(2,1);
+    c3->cd(1);
+    gem_down_hit_should->Draw("colz");
+    c3->cd(2);
+    gem_down_hit_count->Draw("colz");
 
 }

@@ -1,9 +1,9 @@
 
-int mod = 565+34*6;
+int mod = 355;
 
 void gain_factor(){
 
-    const char *dir = "../data/gain_corr";
+    const char *dir = "../data/gain_corr/24827";
     std::vector<TString> files;
 
     TSystemDirectory sysdir(dir, dir);
@@ -25,6 +25,10 @@ void gain_factor(){
     float fit_mean_ref_lms[3];
     float fit_mean_ref_alpha[3];
 
+    // track per-run index ranges for TLatex annotation
+    std::vector<std::pair<int,int>> run_ranges; // [start, end] 1-based entry index
+    std::vector<TString> run_labels;
+
     for (const TString &fpath : files) {
         TFile *f = TFile::Open(fpath);
         if (!f || f->IsZombie()) { delete f; continue; }
@@ -36,6 +40,7 @@ void gain_factor(){
         t->SetBranchAddress("fit_mean_ref_lms", fit_mean_ref_lms);
         t->SetBranchAddress("fit_mean_ref_alpha", fit_mean_ref_alpha);
         Long64_t nentries = t->GetEntries();
+        int idx_start = (int)vals[0].size() + 1; // 1-based
         for (Long64_t i = 0; i < nentries; i++) {
             t->GetEntry(i);
             for (int k = 0; k < 3; k++) {
@@ -44,6 +49,14 @@ void gain_factor(){
             }
             ref_lms.push_back(fit_mean_ref_lms[0]);
             ref_alpha.push_back(fit_mean_ref_alpha[0]);
+        }
+        int idx_end = (int)vals[0].size(); // 1-based
+        if (idx_end >= idx_start) {
+            TString bname = gSystem->BaseName(fpath);
+            bname.ReplaceAll("_gain_corr.root", "");
+            bname.ReplaceAll("prad_0", "");
+            run_labels.push_back(bname);
+            run_ranges.push_back({idx_start, idx_end});
         }
         delete f;
     }
@@ -101,6 +114,32 @@ void gain_factor(){
     }
     leg->Draw();
 
+    // draw run boundary lines and TLatex labels
+    {
+        double ybot = ymin_g - margin_g;
+        double ytop = ymax_g + margin_g;
+        int alt = 0;
+        for (int r = 0; r < (int)run_labels.size(); r++) {
+            int xs = run_ranges[r].first;
+            int xe = run_ranges[r].second;
+            if (r > 0) {
+                TLine *vl = new TLine(xs - 0.5, ybot, xs - 0.5, ytop);
+                vl->SetLineStyle(2); vl->SetLineColor(kGray+1);
+                vl->Draw();
+            }
+            double xmid = (xs + xe) / 2.0;
+            double yfrac = (alt % 2 == 0) ? 0.90 : 0.82;
+            double ytex = ybot + (ytop - ybot) * yfrac;
+            TLatex *tex = new TLatex(xmid, ytex,
+                Form("run%s [%d-%d]", run_labels[r].Data(), xs, xe));
+            tex->SetTextSize(0.028);
+            tex->SetTextAlign(22);
+            tex->SetTextColor(kGray+2);
+            tex->Draw();
+            alt++;
+        }
+    }
+
     c->SaveAs(Form("%d_gain_factor.png", mod));
     
     // --- refPMT_ratio plot ---
@@ -143,6 +182,33 @@ void gain_factor(){
         leg2->AddEntry(gr_pmt[k], Form("Ref PMT %d  RMS/mean = %.2f%%", k+1, pct), "p");
     }
     leg2->Draw();
+
+    // draw run boundary lines and TLatex labels on c2
+    {
+        double ybot2 = ymin - margin;
+        double ytop2 = ymax + margin;
+        int alt = 0;
+        for (int r = 0; r < (int)run_labels.size(); r++) {
+            int xs = run_ranges[r].first;
+            int xe = run_ranges[r].second;
+            if (r > 0) {
+                TLine *vl = new TLine(xs - 0.5, ybot2, xs - 0.5, ytop2);
+                vl->SetLineStyle(2); vl->SetLineColor(kGray+1);
+                vl->Draw();
+            }
+            double xmid = (xs + xe) / 2.0;
+            double yfrac = (alt % 2 == 0) ? 0.90 : 0.82;
+            double ytex = ybot2 + (ytop2 - ybot2) * yfrac;
+            TLatex *tex = new TLatex(xmid, ytex,
+                Form("run%s [%d-%d]", run_labels[r].Data(), xs, xe));
+            tex->SetTextSize(0.028);
+            tex->SetTextAlign(22);
+            tex->SetTextColor(kGray+2);
+            tex->Draw();
+            alt++;
+        }
+    }
+
     c2->SaveAs("refPMT_ratio.png");
 
     // --- Ref PMT1 LMS mean vs alpha mean ---
@@ -175,6 +241,33 @@ void gain_factor(){
     leg3->AddEntry(gr_lms,   "LMS mean",   "p");
     leg3->AddEntry(gr_alpha, "Alpha mean", "p");
     leg3->Draw();
+
+    // draw run boundary lines and TLatex labels on c3
+    {
+        double ybot3b = ymin3 - margin3;
+        double ytop3b = ymax3 + margin3;
+        int alt = 0;
+        for (int r = 0; r < (int)run_labels.size(); r++) {
+            int xs = run_ranges[r].first;
+            int xe = run_ranges[r].second;
+            if (r > 0) {
+                TLine *vl = new TLine(xs - 0.5, ybot3b, xs - 0.5, ytop3b);
+                vl->SetLineStyle(2); vl->SetLineColor(kGray+1);
+                vl->Draw();
+            }
+            double xmid = (xs + xe) / 2.0;
+            double yfrac = (alt % 2 == 0) ? 0.90 : 0.82;
+            double ytex = ybot3b + (ytop3b - ybot3b) * yfrac;
+            TLatex *tex = new TLatex(xmid, ytex,
+                Form("run%s [%d-%d]", run_labels[r].Data(), xs, xe));
+            tex->SetTextSize(0.028);
+            tex->SetTextAlign(22);
+            tex->SetTextColor(kGray+2);
+            tex->Draw();
+            alt++;
+        }
+    }
+
     c3->SaveAs("refPMT1_mean.png");
 
     std::cout << "Total entries: " << N << std::endl;

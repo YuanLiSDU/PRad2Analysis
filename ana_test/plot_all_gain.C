@@ -28,7 +28,7 @@ static int jsonIntVal(const std::string &line) {
 
 void plot_all_gain() {
 
-    const char *dir     = "../data/gain_corr";
+    const char *dir     = "../data/gain_corr/24827";
     const char *outdir  = "gain_all_plots";
     const char *hv_json = "../hycal/hv_settings_20260509_220811.json";
     mkdir(outdir, 0755);

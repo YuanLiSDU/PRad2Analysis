@@ -3,8 +3,8 @@
 #include <fstream>
 #include <string>
 
-int example_mod = 633;  // W module number: change this to switch modules
-float shift_x = 0.7f, shift_y = 1.83f;
+int example_mod = 565+34*2;  // W module number: change this to switch modules
+float shift_x = 0.87f, shift_y = 1.0f;
 const int blocks = 5; // number of blocks per side for correction map
 
 // ── Module geometry helper ────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ void energy_plot(){
            mod.name.Data(), mod.x, mod.y, mod.sx, mod.sy);
 
     // ── File 1: prad_024512_recon.root ───────────────────────────────────────
-    TFile *f = TFile::Open("../data/calib/prad_024713_recon.root");
+    TFile *f = TFile::Open("../data/recon/3.5GeV/prad_024917_recon.root");
     TTree *tree = (TTree*)f->Get("recon");
 
     ReconEventData *evp = new ReconEventData();
@@ -120,7 +120,7 @@ void energy_plot(){
     TProfile *h1_delta_y = new TProfile("h1_delta_y", "Mean #DeltaY vs y_{d};y_{d};#LT Y_{HyCal} - Y_{GEM,proj} #GT (mm)",
         50, -0.5, 0.5);
 
-    for (Long64_t i=0; i<tree->GetEntries()/2; i++){
+    for (Long64_t i=0; i<tree->GetEntries()/10; i++){
         tree->GetEntry(i);
         if(i % 10000 == 0)
             cout << "Processing event " << i << " / " << tree->GetEntries() << "\r" << flush;
@@ -210,7 +210,7 @@ void energy_plot(){
             if(mod_E_bloclk_gem[bx][by]->GetEntries() < 20) continue;
             double eexp = mod_Eexp_xy_gem->GetBinContent(bx+1, by+1);
             if(eexp <= 0) continue;
-            double sigma_hint = 0.03 * eexp * sqrt(eexp / 1000.);
+            double sigma_hint = 0.03 * eexp / sqrt(eexp / 1000.);
             if(sigma_hint < 20.) sigma_hint = 20.;
             TF1 *gfit_gem = new TF1(Form("gfit_gem_%d_%d", bx, by), "gaus",
                                      eexp - 1.5*sigma_hint, eexp + 1.5*sigma_hint);

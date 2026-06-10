@@ -39,8 +39,8 @@ ROOT.gErrorIgnoreLevel = ROOT.kError
 BASE      = os.path.dirname(os.path.abspath(__file__))
 GEO_FILE  = os.path.join(BASE, '..', 'hycal_modules.json')
 
-DEFAULT_ROOT_FILE = os.path.join(BASE, '..', 'data', 'calib',
-                                 'prad_024512_recon_new.root')
+DEFAULT_ROOT_FILE = os.path.join(BASE, '..', 'data', 'recon', '3.5GeV',
+                                 'prad_024917_recon.root')
 
 M_PROTON  = 938.272   # MeV
 SHIFT_X   = 0.7       # mm  (position alignment, same as energy_plot.C)
@@ -204,7 +204,7 @@ def fill_histograms(root_path, geo, find_module, ebeam_override=None, center_onl
     branch_names = [b.GetName() for b in tree.GetListOfBranches()]
     has_ebeam = 'EBeam' in branch_names
     if not has_ebeam and ebeam_override is None:
-        ebeam_override = 3488.43   # MeV — default for 3.5 GeV runs
+        ebeam_override = 3485.43   # MeV — default for 3.5 GeV runs
         print(f'EBeam branch not found; using default {ebeam_override} MeV')
 
     n_entries = tree.GetEntries()
@@ -236,7 +236,7 @@ def fill_histograms(root_path, geo, find_module, ebeam_override=None, center_onl
         if ebeam_override is not None:
             ebeam = ebeam_override
         else:
-            ebeam = float(ev.EBeam) if ev.EBeam > 100 else 3488.43
+            ebeam = float(ev.EBeam) if ev.EBeam > 100 else 3485.43
         eexp  = expected_energy_ep(hx, hy, hz, ebeam)
 
         hists[name].Fill(en)

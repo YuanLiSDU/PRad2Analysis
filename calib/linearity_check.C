@@ -38,8 +38,8 @@ void linearity_check()
     const float EBeam = 728.9f;  // MeV, run 24655
 
     // ── open files ──────────────────────────────────────────────────────────
-    TFile *fLin    = TFile::Open("prad_024655_quick_check.root",          "READ");
-    TFile *fNonLin = TFile::Open("prad_024655_quick_check_nonLinear.root","READ");
+    TFile *fLin    = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check.root",          "READ");
+    TFile *fNonLin = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_new.root","READ");
     if (!fLin || fLin->IsZombie() || !fNonLin || fNonLin->IsZombie()) {
         std::cerr << "Cannot open input files" << std::endl; return;
     }
@@ -51,8 +51,8 @@ void linearity_check()
     fLin->Close(); fNonLin->Close();
 
     // merge 2 x-bins into 1  (0.05 deg/bin → 0.10 deg/bin)
-    hLin   ->RebinX(2);
-    hNonLin->RebinX(2);
+    //hLin   ->RebinX(2);
+    //hNonLin->RebinX(2);
 
     // ── kinematic curves ────────────────────────────────────────────────────
     // ep: black, ee: red (kRed+1)
