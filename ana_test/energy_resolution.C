@@ -105,11 +105,11 @@ void energy_resolution(){
     TH1F *deltaX = new TH1F("deltaX", "X_{cluster} - X_{projected};#DeltaX (mm);Counts", 3000, -300, 300);
     TH1F *deltaY = new TH1F("deltaY", "Y_{cluster} - Y_{projected};#DeltaY (mm);Counts", 3000, -300, 300);
 
-    for (Long64_t i=0; i<tree_3p5->GetEntries()/100; i++){
+    for (Long64_t i=0; i<tree_3p5->GetEntries(); i++){
         tree_3p5->GetEntry(i);
         if(i % 10000 == 0)
             cout << "Processing event " << i << " / " << tree_3p5->GetEntries() << "\r" << flush;
-        //if(ev_3p5.n_clusters != 2) continue;
+        
         for(int j = 0; j < ev_3p5.n_clusters; j++){
             if(ev_3p5.cl_nblocks[j] < 5) continue;
             bool gem_match0 = ((ev_3p5.matchFlag[j] & (1u<<0)) != 0); // matched with GEM0
@@ -120,21 +120,19 @@ void energy_resolution(){
 
             float E = ev_3p5.cl_energy[j];
             float x, y, z;
-            if(gem_match0) {
-                x = ev_3p5.matchGEMx[j][0];
-                y = ev_3p5.matchGEMy[j][0];
-                z = ev_3p5.matchGEMz[j][0];
-            } else if(gem_match1) {
-                x = ev_3p5.matchGEMx[j][1];
-                y = ev_3p5.matchGEMy[j][1];
-                z = ev_3p5.matchGEMz[j][1];
+            if(gem_match2) {
+                x = ev_3p5.matchGEMx[j][2];
+                y = ev_3p5.matchGEMy[j][2];
+                z = ev_3p5.matchGEMz[j][2];
+            } else if(gem_match3) {
+                x = ev_3p5.matchGEMx[j][3];
+                y = ev_3p5.matchGEMy[j][3];
+                z = ev_3p5.matchGEMz[j][3];
             }
-            //x = ev_3p5.cl_x[j]; y = ev_3p5.cl_y[j]; z = ev_3p5.cl_z[j];
             float scale = 6270.f / z;
             x *= scale; y *= scale; z = 6270.f;
             deltaX->Fill(x - ev_3p5.cl_x[j]);
             deltaY->Fill(y - ev_3p5.cl_y[j]);
-            //if(fabs(x - ev_3p5.cl_x[j]) < 10 && fabs(y - ev_3p5.cl_y[j]) < 10) continue;
             //x += shift_x; y += shift_y; // apply position shifts to align with expected module center
             if(!inHyCal(x, y)) continue;
 
@@ -143,6 +141,7 @@ void energy_resolution(){
             if(bin < 0 || bin >= Nbins) continue;
 
             E_vs_theta_3p5->Fill(theta_deg, E);
+            h1_hist_3p5[bin]->Fill(E);
 
             // Also fill the "centered" histogram if the hit is within 0.3 module widths of the expected center
             //ModInfo mod = GetModInfo(ev_3p5.cl_center[j]-1000);
@@ -150,9 +149,8 @@ void energy_resolution(){
             // require hit to be in central 3x3 of a 5x5 grid (|xd|,|yd| < 0.3)
             float xd = (x - mod_x[ev_3p5.cl_center[j]-1000]) / module;
             float yd = (y - mod_y[ev_3p5.cl_center[j]-1000]) / module;
-            //if (std::abs(xd) >= 0.2f || std::abs(yd) >= 0.2f) continue;
+            if (std::abs(xd) >= 0.25f || std::abs(yd) >= 0.25f) continue;
             h1_hist_3p5_center[bin]->Fill(E);
-            h1_hist_3p5[bin]->Fill(E);
         }
     }
 
@@ -189,7 +187,7 @@ void energy_resolution(){
 
     TCanvas *c[Nbins];
     for(int bin_idx = 0; bin_idx < Nbins; bin_idx++){
-        TH1F *h = h1_hist_3p5[bin_idx];
+        TH1F *h = h1_hist_3p5_center[bin_idx];
         if(h->GetEntries() < 10) continue;
 
         // Bin center angle for expected peak calculation
@@ -422,7 +420,7 @@ void energy_resolution(){
 
     TFile *f_out = new TFile(Form("%s/energy_resolution_results.root", outdir), "RECREATE");
     for(int i = 0; i < Nbins; i++) {
-        auto h = h1_hist_3p5[i];
+        auto h = h1_hist_3p5_center[i];
         if (h->GetEntries() > 0) {
             h->Write();
             if (c[i]) c[i]->Write();

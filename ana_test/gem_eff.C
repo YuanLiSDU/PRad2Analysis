@@ -9,7 +9,7 @@ const float binEdge[Nbins+1] = {
     3.392, 3.692, 3.992, 4.292
 };
 
-float Ebeam = 700.f; // MeV
+float Ebeam = 2200.51f; // MeV
 float resolution = 0.04f;
 
 // Returns true if (x, y) [mm] lies inside the HyCal active acceptance:
@@ -17,12 +17,12 @@ float resolution = 0.04f;
 bool inHyCal(double xmm, double ymm) {
     const double module = 20.75; // mm
     return (fabs(xmm) > module * 2.5 || fabs(ymm) > module * 2.5)
-        && (fabs(xmm) < module * 16. && fabs(ymm) < module * 16.);
+        && (fabs(xmm) < module * 17. && fabs(ymm) < module * 17.);
 }
 
 void gem_eff(){
 
-    TFile *f = TFile::Open("../data/recon/0.7GeV/prad_024662_recon.root");
+    TFile *f = TFile::Open("../data/2.2GeV/prad_025218_filter.root");
     if (!f || f->IsZombie()) {
         std::cerr << "ERROR: cannot open file" << std::endl;
         return;
@@ -47,7 +47,7 @@ void gem_eff(){
     TH2F *gem_down_hit_should = new TH2F("gem_down_hit_should", "Downstream GEM hit distribution (should);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
     TH2F *gem_down_hit_count = new TH2F("gem_down_hit_count", "Downstream GEM hit distribution (count);X (mm);Y (mm)", 700, -350, 350, 700, -350, 350);
 
-    for (Long64_t i = 0; i < tree->GetEntries()/5; i++) {
+    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
         if (i % 10000 == 0)
             std::cout << "  " << i << " / " << tree->GetEntries() << "\r" << std::flush;
         tree->GetEntry(i);
