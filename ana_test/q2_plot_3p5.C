@@ -171,6 +171,7 @@ static void fillHists(const std::vector<TString> &fnames,
                 }
             }
         }else{
+            std::vector<HCHit> moller_Hits_candidate;
             for (int j = 0; j < ev.matchNum; j++) {
                 GEMHit hit;
                 hit.x = ev.mHit_gx[j][1];
@@ -194,7 +195,54 @@ static void fillHists(const std::vector<TString> &fnames,
                     E_angle_mott->Fill(theta, E);
                     mott_yield->Fill(theta);
                 }
+
+                if (E > 80. && E < Ebeam - 3. * resolution * Ebeam / sqrt(Ebeam/1000.))
+                    moller_Hits_candidate.emplace_back(hit.x, hit.y, hit.z, E);
             }
+            std::sort(moller_Hits_candidate.begin(), moller_Hits_candidate.end(),
+                  [](const HCHit &a, const HCHit &b){ return a.energy > b.energy; });
+
+            MollerData mollerData_event;
+            int nCand = moller_Hits_candidate.size();
+            for (int ii = 0; ii < nCand; ++ii) {
+                const HCHit &hi = moller_Hits_candidate[ii];
+                float theta_i = atan2(std::sqrt(hi.x*hi.x + hi.y*hi.y), hi.z) * 180.f / M_PI;
+                for (int jj = nCand - 1; jj > ii; --jj) {
+                    const HCHit &hj = moller_Hits_candidate[jj];
+                    float theta_j = atan2(std::sqrt(hj.x*hj.x + hj.y*hj.y), hj.z) * 180.f / M_PI;
+                    if (isMoller_kinematic(theta_i, hi.energy, theta_j, hj.energy, Ebeam, resolution)) {
+                        MollerEvent candidate = {DataPoint(hi.x, hi.y, hi.z, hi.energy), DataPoint(hj.x, hj.y, hj.z, hj.energy)};
+                        if(fabs(GetMollerPhiDiff(candidate)) > 10.f) continue;
+                        mollerData_event.emplace_back(candidate);
+                    }
+                }
+            }
+
+            if(mollerData_event.size() == 0) continue;
+
+            if(mollerData_event.size() > 1) {
+                auto getPt = [](const MollerEvent &mev) -> float {
+                    float sin_t1 = sqrt(mev.first.x*mev.first.x + mev.first.y*mev.first.y) / mev.first.z;
+                    float sin_t2 = sqrt(mev.second.x*mev.second.x + mev.second.y*mev.second.y) / mev.second.z;
+                    return fabs(mev.first.E * sin_t1 - mev.second.E * sin_t2);
+                };
+                auto best = std::min_element(mollerData_event.begin(), mollerData_event.end(),
+                                            [&](const MollerEvent &a, const MollerEvent &b){ return getPt(a) < getPt(b); });
+                MollerEvent bestPair = *best;
+                mollerData_event.clear();
+                mollerData_event.push_back(bestPair);
+            }
+
+            const MollerEvent &mev = mollerData_event.front();
+            HC_moller_events.push_back(mev);
+            float t1 = atan2(std::sqrt(mev.first.x*mev.first.x   + mev.first.y*mev.first.y),   mev.first.z)  * 180.f / M_PI;
+            float t2 = atan2(std::sqrt(mev.second.x*mev.second.x + mev.second.y*mev.second.y), mev.second.z) * 180.f / M_PI;
+            hits_moller->Fill(mev.first.x,  mev.first.y);
+            hits_moller->Fill(mev.second.x, mev.second.y);
+            E_angle_moller->Fill(t1, mev.first.E);
+            E_angle_moller->Fill(t2, mev.second.E);
+            moller_yield->Fill(t1);
+            moller_yield->Fill(t2);
         }
     }
     std::cout << std::endl;
