@@ -79,11 +79,10 @@ void veto_ana_2p2(){
             for(int k = 0; k < npeaks; k++) {
                 veto_hits[channel].times.push_back(ev.veto_peak_time[j][k]);
                 veto_hits[channel].adcs.push_back(ev.veto_peak_integral[j][k]);
-
+                float diff = ev.cl_time[0] - ev.veto_peak_time[j][k];
                 h1_veto_time[channel]->Fill(ev.veto_peak_time[j][k]);
                 h1_veto_adc[channel]->Fill(ev.veto_peak_integral[j][k]);
-                if(ev.veto_peak_integral[j][k] > 2000) continue;
-                h1_veto_hycal_time_diff[channel]->Fill(ev.cl_time[0] - ev.veto_peak_time[j][k]);
+                h1_veto_hycal_time_diff[channel]->Fill(diff);
             }
         }
         
@@ -96,8 +95,9 @@ void veto_ana_2p2(){
                     for(int p = 0; p < veto_hits[j].npeaks; p++) {
                         h1_veto_time_coinArea[j]->Fill(veto_hits[j].times[p]);
                         h1_veto_adc_coinArea[j]->Fill(veto_hits[j].adcs[p]);
+                        float diff = ev.cl_time[0] - veto_hits[j].times[p];
                         if(veto_hits[j].adcs[p] > 2000) continue;
-                        h1_veto_hycal_time_diff_coinArea[j]->Fill(ev.cl_time[0] - veto_hits[j].times[p]);
+                        h1_veto_hycal_time_diff_coinArea[j]->Fill(diff);
                     }
                 }
             }

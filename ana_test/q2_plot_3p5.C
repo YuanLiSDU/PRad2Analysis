@@ -464,6 +464,17 @@ void q2_plot_3p5(const char *files = "../../A/24917_recon_filter.root",
     cv2_moller->SetGrid();
     moller_yield->Draw("EP");
 
+    for(int i = 1; i <= yield_ratio->GetNbinsX(); i++) {
+        double ep_yield = mott_yield->GetBinContent(i);
+        ep_yield -= mott_yield_B->GetBinContent(i); // subtract type B background
+        double moller_yield_val = moller_yield->GetBinContent(i);
+        moller_yield_val -= moller_yield_B->GetBinContent(i); // subtract type B background
+        if (moller_yield_val != 0.) {
+            yield_ratio->SetBinContent(i, ep_yield / moller_yield_val);
+            yield_ratio->SetBinError(i, 0.); // for simplicity, set error to 0
+        }
+    }
+
     TCanvas *cv2_ratio = new TCanvas("c_ratio", "Yield Ratio", 900, 700);
     cv2_ratio->SetGrid();
     yield_ratio->Draw("EP");
