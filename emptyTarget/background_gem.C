@@ -40,12 +40,32 @@ static void fillHists(const std::vector<TString> &fnames,
             if( fabs(x) < 20.25 * 2.5 && fabs(y) < 20.25 * 2.5 ) continue;
             if( fabs(x) > 20.25 * 16. || fabs(y) > 20.25 * 16. ) continue;
 
-            //if( ev.cl_nblocks[j] <= 3 ) continue; // remove single-block clusters which are mostly noise
-
             hit_all->Fill(x, y);
             E_angle->Fill(theta, E);
 
-            if (isMott(E, Ebeam, resolution)) {
+            // vertex reconstruction from closest approach to beam axis
+            float vx = 0.f, vy = 0.f, vz = 0.f;
+            float x1 = ev.mHit_gx[j][1], x2 = ev.mHit_gx[j][0];
+            float y1 = ev.mHit_gy[j][1], y2 = ev.mHit_gy[j][0];
+            float z1 = ev.mHit_gz[j][1], z2 = ev.mHit_gz[j][0];
+
+            // Track line from two GEM hits: P(t) = P1 + t * (P2 - P1)
+            const float dx = x2 - x1;
+            const float dy = y2 - y1;
+            const float dz = z2 - z1;
+
+            // Closest approach to beam axis (x=0, y=0): minimize x(t)^2 + y(t)^2
+            const float den = dx * dx + dy * dy;
+            if (den < 1e-12f) continue; // nearly parallel to beam axis in x-y projection
+
+            const float t = -(x1 * dx + y1 * dy) / den;
+            vx = x1 + t * dx;
+            vy = y1 + t * dy;
+            vz = z1 + t * dz;
+
+            bool vertex_valid = fabs(vz) < 300.0 * 3.0;
+
+            if (isMott(E, Ebeam, resolution) && vertex_valid) {
                 hits_mott->Fill(x, y);
                 E_angle_mott->Fill(theta, E);
                 mott_yield->Fill(theta);
