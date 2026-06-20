@@ -7,9 +7,9 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "June20_A.root",
-    const char *fileB = "June20_B.root",
-    const char *fileC = "June20_C.root",
+    const char *fileA = "June20_A_vertex.root",
+    const char *fileB = "June20_B_vertex.root",
+    const char *fileC = "June20_C_vertex.root",
     const char *fileD = "June20_D.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
