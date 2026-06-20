@@ -116,8 +116,8 @@ struct ReconEventData {
 
     //veto information
     int      veto_nch = 0;
-    uint8_t veto_id[4]   = {}; // 1,2,3,4 for veto1-4
-    int veto_npeaks[4] = {};
+    uint8_t veto_id[10]   = {}; // 1,2,3,4 for veto1-4
+    int veto_npeaks[10] = {};
     float veto_peak_time[4][MAX_PEAKS]     = {};
     float veto_peak_integral[4][MAX_PEAKS] = {};
 

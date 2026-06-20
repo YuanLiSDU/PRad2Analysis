@@ -19,7 +19,7 @@ void MakeKinematicGraphs(float EBeam,
         double theta = thetaMin + (thetaMax - thetaMin) * i / (nPts - 1);
         double E     = ExpectedEnergy((float)theta, EBeam, type);
         if (E <= 0) { gCenter->SetPoint(i, theta, 0); gUp->SetPoint(i, theta, 0); gDn->SetPoint(i, theta, 0); continue; }
-        double sig3  = 0.099 * std::sqrt(1000.0 * E);  // 3σ in MeV
+        double sig3  = 3 * 0.035 * std::sqrt(1000.0 * E);  // 3σ in MeV
         gCenter->SetPoint(i, theta, E);
         gUp    ->SetPoint(i, theta, E + sig3);
         gDn    ->SetPoint(i, theta, E - sig3);
@@ -35,11 +35,11 @@ void StyleGraph(TGraph *g, int color, int lstyle, int lwidth = 2)
 
 void linearity_check()
 {
-    const float EBeam = 728.9f;  // MeV, run 24655
+    const float EBeam = 728.9;  // MeV, run 24655
 
     // ── open files ──────────────────────────────────────────────────────────
-    TFile *fLin    = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check.root",          "READ");
-    TFile *fNonLin = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_new.root","READ");
+    TFile *fLin    = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_old.root",          "READ");
+    TFile *fNonLin = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_linear.root","READ");
     if (!fLin || fLin->IsZombie() || !fNonLin || fNonLin->IsZombie()) {
         std::cerr << "Cannot open input files" << std::endl; return;
     }
@@ -90,8 +90,8 @@ void linearity_check()
         pad->SetBottomMargin(0.12);
         h->SetTitle(Form("%s;#theta (deg);Energy (MeV)", title));
         h->SetStats(0);
-        h->GetXaxis()->SetRangeUser(0.0, 4.0);
-        h->GetYaxis()->SetRangeUser(50, 1000);
+        h->GetXaxis()->SetRangeUser(0.3, 4.5);
+        h->GetYaxis()->SetRangeUser(0, 1000);
         h->Draw("COLZ");
         gEP_cen->Draw("L same");
         gEP_up ->Draw("L same");

@@ -36,13 +36,20 @@ void veto_ana_2p2(){
 
     TH1F *h1_veto_time[4], *h1_veto_adc[4], *h1_veto_hycal_time_diff[4];
     TH1F *h1_veto_time_coinArea[4], *h1_veto_adc_coinArea[4], *h1_veto_hycal_time_diff_coinArea[4];
+    TH1F *h1_veto_time_adc2000[4];
     for(int i = 0; i < 4; i++) {
         h1_veto_time[i] = new TH1F(Form("h1_veto_time_%d", i), Form("Veto Channel %d Time;Time [ns];Counts", i), 100, 0, 400);
-        h1_veto_adc[i] = new TH1F(Form("h1_veto_adc_%d", i), Form("Veto Channel %d ADC;ADC;Counts", i), 100, 0, 20000);
+        h1_veto_adc[i] = new TH1F(Form("h1_veto_adc_%d", i), Form("Veto Channel %d ADC;ADC;Counts", i), 2000, 0, 20000);
         h1_veto_time_coinArea[i] = new TH1F(Form("h1_veto_time_coinArea_%d", i), Form("Veto Channel %d Time Coincidence Area;Time [ns];Counts", i), 100, 0, 400);
-        h1_veto_adc_coinArea[i] = new TH1F(Form("h1_veto_adc_coinArea_%d", i), Form("Veto Channel %d ADC Coincidence Area;ADC;Counts", i), 100, 0, 20000);
+        h1_veto_adc_coinArea[i] = new TH1F(Form("h1_veto_adc_coinArea_%d", i), Form("Veto Channel %d ADC Coincidence Area;ADC;Counts", i), 2000, 0, 20000);
         h1_veto_hycal_time_diff[i] = new TH1F(Form("h1_veto_hycal_time_diff_%d", i), Form("Veto Channel %d HyCal Time Difference;Time Difference [ns];Counts", i), 100, -200, 200);
         h1_veto_hycal_time_diff_coinArea[i] = new TH1F(Form("h1_veto_hycal_time_diff_coinArea_%d", i), Form("Veto Channel %d HyCal Time Difference Coincidence Area;Time Difference [ns];Counts", i), 100, -200, 200);
+        h1_veto_time_adc2000[i] = new TH1F(Form("h1_veto_time_adc2000_%d", i), Form("Veto Channel %d Time ADC > 2000;Time [ns];Counts", i), 100, 0, 400);
+    }
+
+    TH1F *h1_veto_npeaks[4];
+    for(int i = 0; i < 4; i++) {
+        h1_veto_npeaks[i] = new TH1F(Form("h1_veto_npeaks_%d", i), Form("Veto Channel %d Number of Peaks;Number of Peaks;Counts", i), 10, 0, 10);
     }
 
     TH1F *h1_hycal_time = new TH1F("h1_hycal_time", "HyCal Cluster Time;Time [ns];Counts", 100, 0, 400);
@@ -76,6 +83,7 @@ void veto_ana_2p2(){
             veto_hits[channel].npeaks = npeaks;
             veto_hits[channel].times.clear();
             veto_hits[channel].adcs.clear();
+            h1_veto_npeaks[channel]->Fill(npeaks);
             for(int k = 0; k < npeaks; k++) {
                 veto_hits[channel].times.push_back(ev.veto_peak_time[j][k]);
                 veto_hits[channel].adcs.push_back(ev.veto_peak_integral[j][k]);
@@ -83,6 +91,9 @@ void veto_ana_2p2(){
                 h1_veto_time[channel]->Fill(ev.veto_peak_time[j][k]);
                 h1_veto_adc[channel]->Fill(ev.veto_peak_integral[j][k]);
                 h1_veto_hycal_time_diff[channel]->Fill(diff);
+                if(ev.veto_peak_integral[j][k] > 2000) {
+                    h1_veto_time_adc2000[channel]->Fill(ev.veto_peak_time[j][k]);
+                }
             }
         }
         
@@ -93,11 +104,13 @@ void veto_ana_2p2(){
             for(int j = 0; j < 4; j++) {
                 if(veto_hits[j].npeaks > 0) {
                     for(int p = 0; p < veto_hits[j].npeaks; p++) {
-                        h1_veto_time_coinArea[j]->Fill(veto_hits[j].times[p]);
-                        h1_veto_adc_coinArea[j]->Fill(veto_hits[j].adcs[p]);
                         float diff = ev.cl_time[0] - veto_hits[j].times[p];
-                        if(veto_hits[j].adcs[p] > 2000) continue;
-                        h1_veto_hycal_time_diff_coinArea[j]->Fill(diff);
+                        if(diff > -50 && diff < -30){
+                            h1_veto_time_coinArea[j]->Fill(veto_hits[j].times[p]);
+                            h1_veto_adc_coinArea[j]->Fill(veto_hits[j].adcs[p]);
+                            //if(veto_hits[j].adcs[p] > 2000) continue;
+                            h1_veto_hycal_time_diff_coinArea[j]->Fill(diff);
+                        }
                     }
                 }
             }
@@ -170,5 +183,19 @@ void veto_ana_2p2(){
     for(int i = 0; i < 4; i++) {
         c6->cd(i+1);
         h2_hit_xy_veto[i]->Draw("COLZ");
+    }
+    
+    TCanvas* c7 = new TCanvas("c7", "Veto Number of Peaks", 800, 600);
+    c7->Divide(2,2);
+    for(int i = 0; i < 4; i++) {
+        c7->cd(i+1);
+        h1_veto_npeaks[i]->Draw();
+    }
+
+    TCanvas* c8 = new TCanvas("c8", "Veto Time ADC > 2000", 800, 600);
+    c8->Divide(2,2);
+    for(int i = 0; i < 4; i++) {
+        c8->cd(i+1);
+        h1_veto_time_adc2000[i]->Draw();
     }
 }

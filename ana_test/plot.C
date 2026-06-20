@@ -121,7 +121,6 @@ void plot_cross_section() {
     pad_top->SetLeftMargin(0.13);
     pad_top->SetRightMargin(0.05);
     pad_top->SetGrid();
-    pad_top->SetLogy();
     pad_top->SetLogx();
     pad_top->Draw();
     pad_top->cd();
@@ -200,4 +199,371 @@ void plot_cross_section() {
 
     cv->cd();
     cv->SaveAs("cross_section.png");
+}
+
+void plot_cross_section_all(){
+    const int nE = 3;
+    const char *files[nE] = {
+        "../data/q2_plot_output_0p7.root",
+        "../data/q2_plot_output_2p2.root",
+        "../data/q2_plot_output_3p5.root"
+    };
+    const char *labels[nE] = {"0.7 GeV", "2.2 GeV", "3.5 GeV"};
+    const int colors[nE] = {kBlue + 1, kGreen + 2, kRed + 1};
+    const int markers[nE] = {20, 21, 22};
+    const double current_charge[nE] = {3.18, 43., 210.}; // mC
+    const double run_charge[nE]     = { 0.164753,  0.248315,  4.639600}; // mC, charge used to make rel_err
+    double stat_scale[nE] = {1., 1., 1.};
+    for (int i = 0; i < nE; i++) {
+        if (current_charge[i] <= 0.) {
+            std::cerr << "Invalid current charge for " << labels[i] << std::endl;
+            return;
+        }
+        stat_scale[i] = sqrt(run_charge[i] / current_charge[i]);
+        std::cout << labels[i]
+                  << ": current charge = " << current_charge[i] << " mC, "
+                  << "run charge = " << run_charge[i] << " mC, "
+                  << "stat. error scale = " << stat_scale[i] << std::endl;
+    }
+
+    TH1F *cross_section[nE] = {nullptr};
+    TH1F *gen_cross[nE] = {nullptr};
+    TGraph *gen_graph[nE] = {nullptr};
+    TH1F *rel_err[nE] = {nullptr};
+
+    double x_min = 1.e30, x_max = -1.e30;
+    double cs_min = 1.e30, cs_max = -1.e30;
+    double err_min = 1.e30, err_max = -1.e30;
+
+    for (int i = 0; i < nE; i++) {
+        TFile *fin = TFile::Open(files[i]);
+        if (!fin || fin->IsZombie()) {
+            std::cerr << "Cannot open " << files[i] << std::endl;
+            return;
+        }
+
+        TH1F *h_cs = (TH1F*)fin->Get("cross_section");
+        TH1F *h_gen = (TH1F*)fin->Get("gen_cross");
+        TH1F *h_er = (TH1F*)fin->Get("rel_err");
+        if (!h_cs || !h_gen || !h_er) {
+            std::cerr << "Missing cross_section, gen_cross or rel_err in " << files[i] << std::endl;
+            fin->Close();
+            return;
+        }
+
+        cross_section[i] = (TH1F*)h_cs->Clone(Form("cross_section_%d_plot", i));
+        gen_cross[i]     = (TH1F*)h_gen->Clone(Form("gen_cross_%d_plot", i));
+        rel_err[i]       = (TH1F*)h_er->Clone(Form("rel_err_%d_plot", i));
+        cross_section[i]->SetDirectory(nullptr);
+        gen_cross[i]->SetDirectory(nullptr);
+        rel_err[i]->SetDirectory(nullptr);
+        fin->Close();
+
+        rel_err[i]->Scale(stat_scale[i]);
+
+        for (int ib = 1; ib <= cross_section[i]->GetNbinsX(); ib++) {
+            double x_low = cross_section[i]->GetXaxis()->GetBinLowEdge(ib);
+            double x_up  = cross_section[i]->GetXaxis()->GetBinUpEdge(ib);
+            double y     = cross_section[i]->GetBinContent(ib);
+            cross_section[i]->SetBinError(ib, (y > 0.) ? 0.01*y : 0.);
+            double dy    = cross_section[i]->GetBinError(ib);
+            if (x_low > 0. && x_low < x_min) x_min = x_low;
+            if (x_up  > 0. && x_up  > x_max) x_max = x_up;
+            if (y > 0.) {
+                if (y < cs_min) cs_min = y;
+                if (y + dy > cs_max) cs_max = y + dy;
+            }
+        }
+
+        for (int ib = 1; ib <= gen_cross[i]->GetNbinsX(); ib++) {
+            double y  = gen_cross[i]->GetBinContent(ib);
+            gen_cross[i]->SetBinError(ib, (y > 0.) ? 0.0*y : 0.);
+            double dy = gen_cross[i]->GetBinError(ib);
+            if (y > 0.) {
+                if (y < cs_min) cs_min = y;
+                if (y + dy > cs_max) cs_max = y + dy;
+            }
+        }
+
+        gen_graph[i] = new TGraph();
+        gen_graph[i]->SetName(Form("gen_graph_%d_plot", i));
+        int ip = 0;
+        for (int ib = 1; ib <= gen_cross[i]->GetNbinsX(); ib++) {
+            double x = gen_cross[i]->GetXaxis()->GetBinCenter(ib);
+            double y = gen_cross[i]->GetBinContent(ib);
+            if (x > 0. && y > 0.) {
+                gen_graph[i]->SetPoint(ip, x, y);
+                ip++;
+            }
+        }
+
+        for (int ib = 1; ib <= rel_err[i]->GetNbinsX(); ib++) {
+            double y = rel_err[i]->GetBinContent(ib);
+            if (y > 0.) {
+                if (y < err_min) err_min = y;
+                if (y > err_max) err_max = y;
+            }
+        }
+    }
+
+    if (x_min >= x_max || cs_min >= cs_max || err_min >= err_max) {
+        std::cerr << "Invalid ranges while building all-energy cross-section plot." << std::endl;
+        return;
+    }
+
+    gStyle->SetOptStat(0);
+
+    TCanvas *cv = new TCanvas("c_cross_section_all", "Cross Section All Energies", 1000, 800);
+
+    // ── Upper pad: cross sections for all beam energies ───────────────────
+    TPad *pad_top = new TPad("pad_top_all", "", 0., 0.30, 1., 1.);
+    pad_top->SetBottomMargin(0.02);
+    pad_top->SetLeftMargin(0.13);
+    pad_top->SetRightMargin(0.05);
+    pad_top->SetGrid();
+    pad_top->SetLogx();
+    pad_top->Draw();
+    pad_top->cd();
+
+    TH1F *frame_top = new TH1F("frame_cross_section_all",
+                               "e-p Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)",
+                               100, x_min*0.9, x_max*1.1);
+    frame_top->SetMinimum(cs_min*0.5);
+    frame_top->SetMaximum(cs_max*2.0);
+    frame_top->GetXaxis()->SetLabelSize(0.);
+    frame_top->GetXaxis()->SetTitleSize(0.);
+    frame_top->GetYaxis()->SetTitleSize(0.060);
+    frame_top->GetYaxis()->SetTitleOffset(0.95);
+    frame_top->GetYaxis()->CenterTitle();
+    frame_top->Draw();
+
+    TLatex *prelim = new TLatex(0.50, 0.48, "Very Preliminary");
+    prelim->SetNDC();
+    prelim->SetTextAlign(22);
+    prelim->SetTextFont(62);
+    prelim->SetTextSize(0.115);
+    prelim->SetTextAngle(24);
+    prelim->SetTextColorAlpha(kGray + 1, 0.50);
+    prelim->Draw();
+
+    TLegend *leg_top = new TLegend(0.40, 0.68, 0.90, 0.88);
+    leg_top->SetBorderSize(0);
+    leg_top->SetTextSize(0.038);
+    leg_top->SetNColumns(2);
+
+    for (int i = 0; i < nE; i++) {
+        cross_section[i]->SetStats(0);
+        cross_section[i]->SetMarkerStyle(markers[i]);
+        cross_section[i]->SetMarkerSize(1.3);
+        cross_section[i]->SetMarkerColor(colors[i]);
+        cross_section[i]->SetLineColor(colors[i]);
+        cross_section[i]->SetLineWidth(2);
+        cross_section[i]->Draw("E1X0P SAME");
+        leg_top->AddEntry(cross_section[i], Form("%s Data", labels[i]), "lp");
+
+        gen_graph[i]->SetLineColor(colors[i]);
+        gen_graph[i]->SetLineStyle(2);
+        gen_graph[i]->SetLineWidth(3);
+        gen_graph[i]->Draw("L SAME");
+        leg_top->AddEntry(gen_graph[i], "Generator", "l");
+    }
+
+    for (int i = 0; i < nE; i++) {
+        int n = gen_graph[i]->GetN();
+        if (n <= 0) continue;
+        double x = 0., y = 0.;
+        gen_graph[i]->GetPoint(n - 1, x, y);
+        TLatex *e_label = new TLatex(x*1.03, y, labels[i]);
+        e_label->SetTextColor(colors[i]);
+        e_label->SetTextFont(62);
+        e_label->SetTextSize(0.038);
+        e_label->SetTextAlign(12);
+        e_label->Draw();
+    }
+    leg_top->Draw();
+
+    // ── Lower pad: relative statistical errors for all beam energies ──────
+    cv->cd();
+    TPad *pad_bot = new TPad("pad_bot_all", "", 0., 0., 1., 0.30);
+    pad_bot->SetTopMargin(0.02);
+    pad_bot->SetBottomMargin(0.32);
+    pad_bot->SetLeftMargin(0.13);
+    pad_bot->SetRightMargin(0.05);
+    pad_bot->SetGrid();
+    pad_bot->SetLogx();
+    pad_bot->SetLogy();
+    pad_bot->Draw();
+    pad_bot->cd();
+
+    TH1F *frame_bot = new TH1F("frame_rel_err_all",
+                               ";Q^{2} (GeV^{2});Stat. Error (%)",
+                               100, x_min*0.9, x_max*1.1);
+    frame_bot->SetMinimum(err_min*0.5);
+    frame_bot->SetMaximum(err_max*2.0);
+    frame_bot->GetXaxis()->SetTitleSize(0.12);
+    frame_bot->GetYaxis()->SetTitleSize(0.11);
+    frame_bot->GetXaxis()->SetLabelSize(0.10);
+    frame_bot->GetYaxis()->SetLabelSize(0.09);
+    frame_bot->GetXaxis()->SetTitleOffset(1.0);
+    frame_bot->GetYaxis()->SetTitleOffset(0.55);
+    frame_bot->GetXaxis()->CenterTitle();
+    frame_bot->GetYaxis()->CenterTitle();
+    frame_bot->GetXaxis()->SetMoreLogLabels();
+    frame_bot->GetXaxis()->SetNoExponent();
+    frame_bot->GetYaxis()->SetMoreLogLabels();
+    frame_bot->GetYaxis()->SetNoExponent();
+    frame_bot->Draw();
+
+    for (int i = 0; i < nE; i++) {
+        rel_err[i]->SetStats(0);
+        rel_err[i]->SetMarkerStyle(markers[i]);
+        rel_err[i]->SetMarkerSize(0.9);
+        rel_err[i]->SetMarkerColor(colors[i]);
+        rel_err[i]->SetLineColor(colors[i]);
+        rel_err[i]->SetLineWidth(2);
+        rel_err[i]->Draw("E1P SAME");
+    }
+
+    TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 19th 12:00");
+    stat_note1->SetNDC();
+    stat_note1->SetTextSize(0.070);
+    stat_note1->Draw();
+
+    TLatex *stat_note2 = new TLatex(0.16, 0.74, "(scaled by beam charge)");
+    stat_note2->SetNDC();
+    stat_note2->SetTextSize(0.070);
+    //stat_note2->Draw();
+
+    cv->cd();
+    cv->SaveAs("cross_section_all.png");
+}
+
+void plot_GE_all(){
+    const int nE = 3;
+    const char *files[nE] = {
+        "../data/q2_plot_output_0p7.root",
+        "../data/q2_plot_output_2p2.root",
+        "../data/q2_plot_output_3p5.root"
+    };
+    const char *labels[nE] = {"0.7 GeV", "2.2 GeV", "3.5 GeV"};
+    const int colors[nE] = {kBlue + 1, kGreen + 2, kRed + 1};
+    const int markers[nE] = {20, 21, 22};
+    const double GE_percent_err[nE] = {3., 3., 0.8}; // percent
+
+    TH1F *GE[nE] = {nullptr};
+    TH1F *GE_gen[nE] = {nullptr};
+    TGraph *GE_gen_graph[nE] = {nullptr};
+
+    double x_min = 1.e30, x_max = -1.e30;
+    double ge_min = 1.e30, ge_max = -1.e30;
+
+    for (int i = 0; i < nE; i++) {
+        TFile *fin = TFile::Open(files[i]);
+        if (!fin || fin->IsZombie()) {
+            std::cerr << "Cannot open " << files[i] << std::endl;
+            return;
+        }
+
+        TH1F *h_ge = (TH1F*)fin->Get("GE");
+        TH1F *h_ge_gen = (TH1F*)fin->Get("GE_gen");
+        if (!h_ge || !h_ge_gen) {
+            std::cerr << "Missing GE or GE_gen in " << files[i] << std::endl;
+            fin->Close();
+            return;
+        }
+
+        GE[i] = (TH1F*)h_ge->Clone(Form("GE_%d_plot", i));
+        GE_gen[i] = (TH1F*)h_ge_gen->Clone(Form("GE_gen_%d_plot", i));
+        GE[i]->SetDirectory(nullptr);
+        GE_gen[i]->SetDirectory(nullptr);
+        fin->Close();
+
+        for (int ib = 1; ib <= GE[i]->GetNbinsX(); ib++) {
+            double x_low = GE[i]->GetXaxis()->GetBinLowEdge(ib);
+            double x_up  = GE[i]->GetXaxis()->GetBinUpEdge(ib);
+            double y     = GE[i]->GetBinContent(ib);
+            GE[i]->SetBinError(ib, (y > 0.) ? GE_percent_err[i]/100.*y : 0.);
+            if (x_low > 0. && x_low < x_min) x_min = x_low;
+            if (x_up  > 0. && x_up  > x_max) x_max = x_up;
+            if (y > 0.) {
+                if (y < ge_min) ge_min = y;
+                if (y + GE[i]->GetBinError(ib) > ge_max) ge_max = y + GE[i]->GetBinError(ib);
+            }
+        }
+
+        GE_gen_graph[i] = new TGraph();
+        GE_gen_graph[i]->SetName(Form("GE_gen_graph_%d_plot", i));
+        int ip = 0;
+        for (int ib = 1; ib <= GE_gen[i]->GetNbinsX(); ib++) {
+            double x = GE_gen[i]->GetXaxis()->GetBinCenter(ib);
+            double y = GE_gen[i]->GetBinContent(ib);
+            if (x > 0. && y > 0.) {
+                GE_gen_graph[i]->SetPoint(ip, x, y);
+                ip++;
+                if (y < ge_min) ge_min = y;
+                if (y > ge_max) ge_max = y;
+            }
+        }
+    }
+
+    if (x_min >= x_max || ge_min >= ge_max) {
+        std::cerr << "Invalid ranges while building all-energy GE plot." << std::endl;
+        return;
+    }
+
+    gStyle->SetOptStat(0);
+
+    TCanvas *cv = new TCanvas("c_GE_all", "Electric Form Factor All Energies", 1000, 800);
+
+    TPad *pad_top = new TPad("pad_GE_top_all", "", 0., 0., 1., 1.);
+    pad_top->SetBottomMargin(0.13);
+    pad_top->SetLeftMargin(0.13);
+    pad_top->SetRightMargin(0.05);
+    pad_top->SetGrid();
+    pad_top->SetLogx();
+    pad_top->Draw();
+    pad_top->cd();
+
+    TH1F *frame_top = new TH1F("frame_GE_top_all",
+                               "Electric Form Factor G_{E};Q^{2} (GeV^{2});G_{E}",
+                               100, x_min*0.9, x_max*1.1);
+    frame_top->SetMinimum(0.5);
+    frame_top->SetMaximum(1.2);
+    frame_top->GetXaxis()->SetTitleSize(0.050);
+    frame_top->GetYaxis()->SetTitleSize(0.050);
+    frame_top->GetXaxis()->SetLabelSize(0.040);
+    frame_top->GetYaxis()->SetLabelSize(0.040);
+    frame_top->GetXaxis()->SetTitleOffset(1.0);
+    frame_top->GetYaxis()->SetTitleOffset(1.1);
+    frame_top->GetXaxis()->CenterTitle();
+    frame_top->GetYaxis()->CenterTitle();
+    frame_top->GetXaxis()->SetMoreLogLabels();
+    frame_top->GetXaxis()->SetNoExponent();
+    frame_top->Draw();
+
+    TLegend *leg_top = new TLegend(0.40, 0.68, 0.90, 0.88);
+    leg_top->SetBorderSize(0);
+    leg_top->SetTextSize(0.038);
+    leg_top->SetNColumns(2);
+
+    for (int i = 0; i < nE; i++) {
+        GE[i]->SetStats(0);
+        GE[i]->SetMarkerStyle(markers[i]);
+        GE[i]->SetMarkerSize(1.3);
+        GE[i]->SetMarkerColor(colors[i]);
+        GE[i]->SetLineColor(colors[i]);
+        GE[i]->SetLineWidth(2);
+        GE[i]->Draw("E1X0P SAME");
+        leg_top->AddEntry(GE[i], Form("%s Data", labels[i]), "lp");
+
+        GE_gen_graph[i]->SetLineColor(colors[i]);
+        GE_gen_graph[i]->SetLineStyle(2);
+        GE_gen_graph[i]->SetLineWidth(3);
+        GE_gen_graph[i]->Draw("L SAME");
+        leg_top->AddEntry(GE_gen_graph[i], "Generator", "l");
+    }
+    leg_top->Draw();
+
+    cv->cd();
+    cv->SaveAs("GE_all.png");
 }

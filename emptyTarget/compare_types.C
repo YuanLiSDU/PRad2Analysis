@@ -7,10 +7,10 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "../data/empty_target/typeA_may31_gem.root",
-    const char *fileB = "../data/empty_target/typeB_may31_gem.root",
-    const char *fileC = "../data/empty_target/typeC_may31_gem.root",
-    const char *fileD = "../data/empty_target/typeD_may31_gem.root")
+    const char *fileA = "June20_A.root",
+    const char *fileB = "June20_B.root",
+    const char *fileC = "June20_C.root",
+    const char *fileD = "June20_D.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
     const char *paths[4] = { fileA, fileB, fileC, fileD };
@@ -271,6 +271,114 @@ void compare_types(
 
     cv->SaveAs("compare_types.png");
 
+    // ── Beamline-only view: B, D, B-C, C-D ───────────────────────────────
+    const int beam_color[4] = { cfg_color[0], cfg_color[2], bmc_color[0], bmc_color[1] };
+    const int beam_marker[4] = { 20, 22, 24, 25 };
+    const char *beam_label[4] = { "total background", "from the beamline", "residual gas", "target cell" };
+    const int beam_legend_order[4] = { 0, 2, 1, 3 };
+
+    TH1F *mott_beam[4] = {
+        (TH1F*)mott_ratio[0]->Clone("mott_beam_B"),
+        (TH1F*)mott_ratio[2]->Clone("mott_beam_D"),
+        (TH1F*)mott_bmc_set[0]->Clone("mott_beam_BminusC"),
+        (TH1F*)mott_bmc_set[1]->Clone("mott_beam_CminusD")
+    };
+    TH1F *moller_beam[4] = {
+        (TH1F*)moller_ratio[0]->Clone("moller_beam_B"),
+        (TH1F*)moller_ratio[2]->Clone("moller_beam_D"),
+        (TH1F*)moller_bmc_set[0]->Clone("moller_beam_BminusC"),
+        (TH1F*)moller_bmc_set[1]->Clone("moller_beam_CminusD")
+    };
+    for (int i = 0; i < 4; i++) {
+        mott_beam[i]->SetDirectory(nullptr);
+        moller_beam[i]->SetDirectory(nullptr);
+    }
+    mott_beam[0]->SetTitle("Beamline Background (e-p @ 2.2GeV);Scattering Angle [deg];N_{bckg} / N_{signal} (%)");
+    moller_beam[0]->SetTitle("Beamline Background (e-e Moller @ 2.2GeV);Scattering Angle [deg];N_{bckg} / N_{signal} (%)");
+
+    TCanvas *cv_beam = new TCanvas("c_beamline_background", "Beamline Background", 1200, 500);
+    cv_beam->Divide(2, 1);
+
+    // --- e-p ---
+    cv_beam->cd(1);
+    gPad->SetLogx();
+    for (int i = 0; i < 4; i++) {
+        mott_beam[i]->SetLineColor(beam_color[i]);
+        mott_beam[i]->SetMarkerColor(beam_color[i]);
+        mott_beam[i]->SetMarkerStyle(beam_marker[i]);
+        mott_beam[i]->SetLineWidth(2);
+        mott_beam[i]->SetStats(0);
+        if (i == 0) {
+            mott_beam[i]->GetYaxis()->SetRangeUser(-0.2, 2.0);
+            mott_beam[i]->GetXaxis()->SetRangeUser(0.5, 3.8);
+            mott_beam[i]->GetXaxis()->CenterTitle();
+            mott_beam[i]->GetYaxis()->CenterTitle();
+            mott_beam[i]->GetXaxis()->SetTitleSize(0.045);
+            mott_beam[i]->GetYaxis()->SetTitleSize(0.045);
+            mott_beam[i]->GetXaxis()->SetTitleOffset(0.9);
+            mott_beam[i]->GetYaxis()->SetTitleOffset(0.9);
+            mott_beam[i]->GetXaxis()->SetMoreLogLabels();
+            mott_beam[i]->GetXaxis()->SetNoExponent();
+            mott_beam[i]->Draw("E");
+        } else {
+            mott_beam[i]->Draw("E SAME");
+        }
+    }
+    TLine *line_beam_mott1 = new TLine(mott_beam[0]->GetXaxis()->GetXmin(), 1.,
+                                        mott_beam[0]->GetXaxis()->GetXmax(), 1.);
+    line_beam_mott1->SetLineStyle(2); line_beam_mott1->SetLineColor(kGray+1); line_beam_mott1->Draw();
+    TLine *line_beam_mott0 = new TLine(mott_beam[0]->GetXaxis()->GetXmin(), 0.,
+                                        mott_beam[0]->GetXaxis()->GetXmax(), 0.);
+    line_beam_mott0->SetLineStyle(3); line_beam_mott0->SetLineColor(kGray+1); line_beam_mott0->Draw();
+    TLegend *leg_beam1 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 4; i++) {
+        int idx = beam_legend_order[i];
+        leg_beam1->AddEntry(mott_beam[idx], beam_label[idx], "PE");
+    }
+    leg_beam1->Draw();
+
+    // --- e-e ---
+    cv_beam->cd(2);
+    gPad->SetLogx();
+    for (int i = 0; i < 4; i++)
+        moller_beam[i]->GetXaxis()->SetRangeUser(1.6, 3.0);
+    auto [beam_mol_lo, beam_mol_hi] = yRange(moller_beam, 4);
+    for (int i = 0; i < 4; i++) {
+        moller_beam[i]->SetLineColor(beam_color[i]);
+        moller_beam[i]->SetMarkerColor(beam_color[i]);
+        moller_beam[i]->SetMarkerStyle(beam_marker[i]);
+        moller_beam[i]->SetLineWidth(2);
+        moller_beam[i]->SetStats(0);
+        if (i == 0) {
+            moller_beam[i]->GetYaxis()->SetRangeUser(0., beam_mol_hi);
+            moller_beam[i]->GetXaxis()->CenterTitle();
+            moller_beam[i]->GetYaxis()->CenterTitle();
+            moller_beam[i]->GetXaxis()->SetTitleSize(0.045);
+            moller_beam[i]->GetYaxis()->SetTitleSize(0.045);
+            moller_beam[i]->GetXaxis()->SetTitleOffset(0.9);
+            moller_beam[i]->GetYaxis()->SetTitleOffset(0.9);
+            moller_beam[i]->GetXaxis()->SetMoreLogLabels();
+            moller_beam[i]->GetXaxis()->SetNoExponent();
+            moller_beam[i]->Draw("E");
+        } else {
+            moller_beam[i]->Draw("E SAME");
+        }
+    }
+    TLine *line_beam_mol1 = new TLine(moller_beam[0]->GetXaxis()->GetXmin(), 1.,
+                                       moller_beam[0]->GetXaxis()->GetXmax(), 1.);
+    line_beam_mol1->SetLineStyle(2); line_beam_mol1->SetLineColor(kGray+1); line_beam_mol1->Draw();
+    TLine *line_beam_mol0 = new TLine(moller_beam[0]->GetXaxis()->GetXmin(), 0.,
+                                       moller_beam[0]->GetXaxis()->GetXmax(), 0.);
+    line_beam_mol0->SetLineStyle(3); line_beam_mol0->SetLineColor(kGray+1); line_beam_mol0->Draw();
+    TLegend *leg_beam2 = new TLegend(0.65, 0.72, 0.92, 0.90);
+    for (int i = 0; i < 4; i++) {
+        int idx = beam_legend_order[i];
+        leg_beam2->AddEntry(moller_beam[idx], beam_label[idx], "PE");
+    }
+    leg_beam2->Draw();
+
+    cv_beam->SaveAs("beamline_background.png");
+
     // ── Save to ROOT file ─────────────────────────────────────────────────
     TFile *fout = TFile::Open("compare_types_output.root", "RECREATE");
     mott_denom  ->Write();
@@ -284,6 +392,7 @@ void compare_types(
     mott_cmd_over_amb  ->Write();
     moller_cmd_over_amb->Write();
     cv->Write();
+    cv_beam->Write();
     fout->Close();
     std::cout << "Saved to compare_types_output.root" << std::endl;
 
