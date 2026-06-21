@@ -5,6 +5,10 @@
 #include <cmath>
 #include <iostream>
 
+// Usage:
+//   root -l 'ana_test/vertex_recon_subtract.C("A.root","B.root","C.root","D.root")'
+//   root -l 'ana_test/vertex_recon_subtract.C("A.root","B.root","C.root","D.root",QA,QB,QC,QD)'
+
 float Ebeam_subtract = 2243.5f; // MeV
 float resolution_subtract = 0.037f;
 
@@ -13,7 +17,7 @@ static TH1F *makeVertexHist(const char *name, const char *label)
     TH1F *h = new TH1F(
         name,
         Form("%s Vertex Z;z_{vertex} (mm);Counts / charge", label),
-        500, -3500, 6500);
+        200, -3500, 6500);
     h->Sumw2();
     h->SetDirectory(nullptr);
     return h;
@@ -80,13 +84,12 @@ static void setHistStyle(TH1F *h, Color_t color, Style_t marker)
     h->SetLineWidth(2);
 }
 
-static void setOverlayRange(TH1F *h_frame, TH1F *h_a, TH1F *h_b, TH1F *h_sub)
+static void setOverlayRange(TH1F *h_frame, TH1F **hist, int nhist)
 {
     double ymin = 0.;
     double ymax = 0.;
-    TH1F *hist[3] = { h_a, h_b, h_sub };
 
-    for (int ih = 0; ih < 3; ih++) {
+    for (int ih = 0; ih < nhist; ih++) {
         for (int bin = 1; bin <= hist[ih]->GetNbinsX(); bin++) {
             const double y = hist[ih]->GetBinContent(bin);
             const double e = hist[ih]->GetBinError(bin);
@@ -109,9 +112,70 @@ static void setOverlayRange(TH1F *h_frame, TH1F *h_a, TH1F *h_b, TH1F *h_sub)
 
 void vertex_recon_subtract(
     const char *fileA = "../data/calib/prad_024713_recon.root",
-    double chargeA = 1.,
     const char *fileB = "../data/calib/prad_024713_recon.root",
+    const char *fileC = "../data/calib/prad_024713_recon.root",
+    const char *fileD = "../data/calib/prad_024713_recon.root",
+    double chargeA = 1.,
     double chargeB = 1.,
+    double chargeC = 1.,
+    double chargeD = 1.)
+{
+    const char *files[4] = { fileA, fileB, fileC, fileD };
+    const char *labels[4] = { "A", "B", "C", "D" };
+    double charges[4] = { chargeA, chargeB, chargeC, chargeD };
+    Color_t colors[4] = { kBlue + 1, kRed + 1, kGreen + 2, kViolet + 1 };
+    Style_t markers[4] = { 20, 21, 22, 23 };
+
+    for (int i = 0; i < 4; i++) {
+        if (charges[i] <= 0.) {
+            std::cerr << "Beam charge for type " << labels[i] << " must be positive." << std::endl;
+            return;
+        }
+    }
+
+    TH1F *h_vz[4];
+    for (int i = 0; i < 4; i++) {
+        h_vz[i] = makeVertexHist(Form("h_vz_%s", labels[i]), labels[i]);
+        if (!fillVertexHist(files[i], h_vz[i])) return;
+        h_vz[i]->Scale(1. / charges[i]);
+        setHistStyle(h_vz[i], colors[i], markers[i]);
+    }
+
+    gStyle->SetOptStat(0);
+
+    TCanvas *c = new TCanvas("c_vertex_types", "Charge-normalized vertex comparison", 1000, 700);
+    c->cd();
+    h_vz[0]->SetTitle("Vertex Z by Type;z_{vertex} (mm);Counts / charge");
+    setOverlayRange(h_vz[0], h_vz, 4);
+
+    h_vz[0]->Draw("HIST");
+    for (int i = 1; i < 4; i++) {
+        h_vz[i]->Draw("HIST SAME");
+    }
+
+    TLegend *leg = new TLegend(0.62, 0.66, 0.88, 0.88);
+    leg->SetBorderSize(0);
+    for (int i = 0; i < 4; i++) {
+        leg->AddEntry(h_vz[i], Form("Type %s / Q, Q = %.6g", labels[i], charges[i]), "l");
+    }
+    leg->Draw();
+
+    TLatex *tex = new TLatex();
+    tex->SetNDC(1);
+    tex->SetTextSize(0.026);
+    for (int i = 0; i < 4; i++) {
+        tex->SetTextColor(colors[i]);
+        tex->DrawLatex(0.13, 0.86 - 0.04 * i, Form("%s: %s", labels[i], files[i]));
+    }
+
+    c->SaveAs("vertex_recon_types.png");
+}
+
+void vertex_recon_subtract_old_ab(
+    const char *fileA,
+    double chargeA,
+    const char *fileB,
+    double chargeB,
     const char *labelA = "A",
     const char *labelB = "B")
 {
@@ -143,7 +207,8 @@ void vertex_recon_subtract(
 
     TCanvas *c = new TCanvas("c_vertex_subtract", "Charge-normalized vertex subtraction", 1000, 700);
     c->cd();
-    setOverlayRange(h_sub, h_A, h_B, h_sub);
+    TH1F *h_range[3] = { h_A, h_B, h_sub };
+    setOverlayRange(h_sub, h_range, 3);
 
     h_sub->Draw("E1");
     h_A->Draw("HIST SAME");
