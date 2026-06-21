@@ -8,6 +8,9 @@
 // Usage:
 //   root -l 'ana_test/vertex_recon_subtract.C("A.root","B.root","C.root","D.root")'
 //   root -l 'ana_test/vertex_recon_subtract.C("A.root","B.root","C.root","D.root",QA,QB,QC,QD)'
+// Outputs:
+//   vertex_recon_types.png       : A, B, C, D charge-normalized vertex spectra
+//   vertex_recon_type_diffs.png  : A-B, B-C, C-D charge-normalized differences
 
 float Ebeam_subtract = 2243.5f; // MeV
 float resolution_subtract = 0.037f;
@@ -160,15 +163,44 @@ void vertex_recon_subtract(
     }
     leg->Draw();
 
-    TLatex *tex = new TLatex();
-    tex->SetNDC(1);
-    tex->SetTextSize(0.026);
-    for (int i = 0; i < 4; i++) {
-        tex->SetTextColor(colors[i]);
-        tex->DrawLatex(0.13, 0.86 - 0.04 * i, Form("%s: %s", labels[i], files[i]));
+    c->SaveAs("vertex_recon_types.png");
+
+    TH1F *h_diff[3];
+    const char *diff_labels[3] = { "A - B", "B - C", "C - D" };
+    Color_t diff_colors[3] = { kBlack, kOrange + 7, kCyan + 2 };
+    Style_t diff_markers[3] = { 20, 21, 22 };
+
+    for (int i = 0; i < 3; i++) {
+        h_diff[i] = (TH1F*)h_vz[i]->Clone(Form("h_vz_%sminus%s", labels[i], labels[i + 1]));
+        h_diff[i]->SetTitle("Vertex Z Type Differences;z_{vertex} (mm);#Delta Counts / charge");
+        h_diff[i]->Add(h_vz[i + 1], -1.);
+        setHistStyle(h_diff[i], diff_colors[i], diff_markers[i]);
+    }
+    h_diff[0]->SetLineWidth(3);
+
+    TCanvas *c_diff = new TCanvas("c_vertex_type_diffs", "Charge-normalized vertex differences", 1000, 700);
+    c_diff->cd();
+    setOverlayRange(h_diff[0], h_diff, 3);
+
+    h_diff[0]->Draw("E1");
+    for (int i = 1; i < 3; i++) {
+        h_diff[i]->Draw("E1 SAME");
     }
 
-    c->SaveAs("vertex_recon_types.png");
+    TLine *zero = new TLine(h_diff[0]->GetXaxis()->GetXmin(), 0.,
+                            h_diff[0]->GetXaxis()->GetXmax(), 0.);
+    zero->SetLineStyle(2);
+    zero->SetLineColor(kGray + 1);
+    zero->Draw("SAME");
+
+    TLegend *leg_diff = new TLegend(0.62, 0.70, 0.88, 0.88);
+    leg_diff->SetBorderSize(0);
+    for (int i = 0; i < 3; i++) {
+        leg_diff->AddEntry(h_diff[i], diff_labels[i], "lep");
+    }
+    leg_diff->Draw();
+
+    c_diff->SaveAs("vertex_recon_type_diffs.png");
 }
 
 void vertex_recon_subtract_old_ab(
