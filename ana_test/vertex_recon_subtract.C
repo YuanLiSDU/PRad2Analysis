@@ -111,14 +111,14 @@ static void setOverlayRange(TH1F *h_frame, TH1F **hist, int nhist)
 }
 
 void vertex_recon_subtract(
-    const char *fileA = "../data/calib/prad_024713_recon.root",
-    const char *fileB = "../data/calib/prad_024713_recon.root",
-    const char *fileC = "../data/calib/prad_024713_recon.root",
-    const char *fileD = "../data/calib/prad_024713_recon.root",
-    double chargeA = 1.,
-    double chargeB = 1.,
-    double chargeC = 1.,
-    double chargeD = 1.)
+    const char *fileA = "/lustre24/expphy/volatile/hallb/prad/prad2_replays/2.2GeV/A/prad_025292/prad_025292_filtered.root",
+    const char *fileB = "/lustre24/expphy/volatile/hallb/prad/prad2_replays/2.2GeV/B/prad_025297/prad_025297_filtered.root",
+    const char *fileC = "/lustre24/expphy/volatile/hallb/prad/prad2_replays/2.2GeV/C/prad_025291/prad_025291_filtered.root",
+    const char *fileD = "/lustre24/expphy/volatile/hallb/prad/prad2_replays/2.2GeV/D/prad_025309/prad_025309_filtered.root",
+    double chargeA = 201080.,
+    double chargeB = 1062770.,
+    double chargeC = 876277.,
+    double chargeD = 786689.)
 {
     const char *files[4] = { fileA, fileB, fileC, fileD };
     const char *labels[4] = { "A", "B", "C", "D" };
