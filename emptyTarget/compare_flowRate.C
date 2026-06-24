@@ -18,8 +18,8 @@
 #include "TStyle.h"
 
 // Fill in the two input file names here.
-static const char *file600Flow = "600flow.root";
-static const char *file800Flow = "800flow.root";
+static const char *file600Flow = "../../C_600cc.root";
+static const char *file1300Flow = "../../C_1300cc.root";
 
 static TH1 *loadNormalizedMottYield(const char *fileName, const char *tag)
 {
@@ -56,14 +56,14 @@ void compare_flowRate()
     gStyle->SetOptStat(0);
 
     TH1 *h600Flow = loadNormalizedMottYield(file600Flow, "600flow");
-    TH1 *h800Flow = loadNormalizedMottYield(file800Flow, "800flow");
+    TH1 *h800Flow = loadNormalizedMottYield(file1300Flow, "1300flow");
     if (!h600Flow || !h800Flow) return;
 
     const double thetaMin = 0.5;
     const double thetaMax = 3.8;
 
     h600Flow->SetTitle(
-        "Mott Yield: 600flow vs 800flow;"
+        "Type C Mott Yield: 600flow vs 1300flow;"
         "Reconstructed Scattering Angle [deg];"
         "Count / live charge");
     h600Flow->SetLineColor(kBlue + 1);
@@ -102,8 +102,8 @@ void compare_flowRate()
     legend->SetBorderSize(0);
     legend->SetFillStyle(0);
     legend->AddEntry(h600Flow, "600flow", "PE");
-    legend->AddEntry(h800Flow, "800flow", "PE");
+    legend->AddEntry(h800Flow, "1300flow", "PE");
     legend->Draw();
 
-    canvas->SaveAs("mott_yield_600flow_800flow_live_charge.png");
+    //canvas->SaveAs("mott_yield_600flow_800flow_live_charge.png");
 }
