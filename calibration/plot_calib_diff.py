@@ -14,8 +14,8 @@ from matplotlib.cm import ScalarMappable
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # ── Parameters ──────────────────────────────────────────────────────────────
-file_ref   = 'calibration_factor_1.json'
-file_fadc  = 'calibration_factor_fadc_1.json'
+file_ref   = 'calibration_factor_3p5_June7.json'
+file_fadc  = 'calibration_factor_2p2_fadc.json'
 geo_file   = '../hycal_modules.json'
 output     = 'hycal_calib_diff.png'
 cmap_name  = 'RdBu_r'          # red = fadc > ref, blue = fadc < ref

@@ -26,6 +26,7 @@ DEFAULT_GEO = BASE.parent / "hycal_modules.json"
 
 MAP_OUTPUT = BASE / "calib_factor_map.png"
 HIST_OUTPUT = BASE / "calib_factor_hist.png"
+OUTLIER_OUTPUT = BASE / "calib_factor_outliers.txt"
 
 HYCal_RAINBOW_STOPS = [
     (0.00, (30 / 255,  58 / 255,  95 / 255)),
@@ -37,6 +38,8 @@ HYCal_RAINBOW_STOPS = [
 ANN_FONTSIZE = 7.5
 MAP_VMIN = None
 MAP_VMAX = 0.2
+LOW_FACTOR_CUT = 0.11
+HIGH_FACTOR_CUT = 0.185
 
 
 def load_calib_factor(calib_file):
@@ -163,6 +166,29 @@ def plot_factor_hist(valid_vals, output):
     plt.close(fig)
 
 
+def write_outliers(w_modules, factors, output):
+    outliers = []
+    for m in w_modules:
+        name = m["n"]
+        factor = factors.get(name)
+        if factor is None:
+            continue
+        if factor < LOW_FACTOR_CUT or factor > HIGH_FACTOR_CUT:
+            outliers.append((name, factor))
+
+    outliers.sort(key=lambda item: item[1])
+
+    with open(output, "w") as f:
+        f.write("module factor\n")
+        for name, factor in outliers:
+            f.write(f"{name} {factor:.9f}\n")
+
+    print(f"\nModules with factor < {LOW_FACTOR_CUT} or > {HIGH_FACTOR_CUT}: {len(outliers)}")
+    print("module factor")
+    for name, factor in outliers:
+        print(f"{name} {factor:.9f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot PbWO4 calibration factor map and histogram.")
     parser.add_argument("calib_file", nargs="?", default=DEFAULT_CALIB,
@@ -173,12 +199,15 @@ def main():
                         help="Output PNG for factor map.")
     parser.add_argument("--hist-output", default=HIST_OUTPUT,
                         help="Output PNG for 1-D histogram.")
+    parser.add_argument("--outlier-output", default=OUTLIER_OUTPUT,
+                        help="Output text file for modules with factor < 0.11 or > 0.185.")
     args = parser.parse_args()
 
     calib_file = Path(args.calib_file)
     geo_file = Path(args.geo)
     map_output = Path(args.map_output)
     hist_output = Path(args.hist_output)
+    outlier_output = Path(args.outlier_output)
 
     factor_map = load_calib_factor(calib_file)
     w_modules = load_w_modules(geo_file)
@@ -197,9 +226,11 @@ def main():
 
     plot_factor_map(w_modules, factors, valid_vals, map_output)
     plot_factor_hist(valid_vals, hist_output)
+    write_outliers(w_modules, factors, outlier_output)
 
     print(f"Saved: {map_output}")
     print(f"Saved: {hist_output}")
+    print(f"Saved: {outlier_output}")
 
 
 if __name__ == "__main__":

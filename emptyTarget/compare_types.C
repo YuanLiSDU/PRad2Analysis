@@ -7,9 +7,9 @@
 //   root -l 'emptyTarget/compare_types.C("pathA.root","pathB.root","pathC.root","pathD.root")'
 
 void compare_types(
-    const char *fileA = "June20_A_vertex.root",
-    const char *fileB = "June20_B_vertex.root",
-    const char *fileC = "June20_C_vertex.root",
+    const char *fileA = "24941_noVertex.root",
+    const char *fileB = "24942_noVertex.root",
+    const char *fileC = "24942_noVertex.root",
     const char *fileD = "June20_D.root")
 {
     // ── Open files and clone histograms ──────────────────────────────────
@@ -138,6 +138,7 @@ void compare_types(
     TLine *line_mott = new TLine(mott_ratio[0]->GetXaxis()->GetXmin(), 1.,
                                   mott_ratio[0]->GetXaxis()->GetXmax(), 1.);
     line_mott->SetLineStyle(2); line_mott->SetLineColor(kGray+1); line_mott->Draw();
+
     TLegend *leg1 = new TLegend(0.65, 0.72, 0.92, 0.90);
     for (int i = 0; i < 3; i++) leg1->AddEntry(mott_ratio[i], ratio_label[i], "PE");
     // leg1 drawn later after bmc overlay
@@ -233,6 +234,13 @@ void compare_types(
     mott_cmd_over_amb  ->Scale(100.);
     moller_cmd_over_amb->Scale(100.);
 
+    TF1 *fit_mott_bmc_over_amb = new TF1("fit_mott_BmC_over_AmB_logx", "[0]+[1]*log(x)", 0.5, 3.8);
+    fit_mott_bmc_over_amb->SetLineColor(kBlack);
+    fit_mott_bmc_over_amb->SetLineStyle(2);
+    fit_mott_bmc_over_amb->SetLineWidth(3);
+    fit_mott_bmc_over_amb->SetParameters(0.5, 0.0);
+    mott_bmc_over_amb->Fit(fit_mott_bmc_over_amb, "RQ0");
+
     const int bmc_color[2] = { kBlue+1, kOrange+7 };
     const char *bmc_label[2] = { "(B-C)/(A-B)", "(C-D)/(A-B)" };
     TH1F *mott_bmc_set  [2] = { mott_bmc_over_amb,   mott_cmd_over_amb   };
@@ -251,6 +259,12 @@ void compare_types(
     TLine *line_mott2 = new TLine(mott_ratio[0]->GetXaxis()->GetXmin(), 0.,
                                    mott_ratio[0]->GetXaxis()->GetXmax(), 0.);
     line_mott2->SetLineStyle(3); line_mott2->SetLineColor(kGray+1); line_mott2->Draw();
+    fit_mott_bmc_over_amb->Draw("SAME");
+    leg1->AddEntry(fit_mott_bmc_over_amb,
+                   Form("(B-C)/(A-B) fit: %.3f %+.3f ln#theta",
+                        fit_mott_bmc_over_amb->GetParameter(0),
+                        fit_mott_bmc_over_amb->GetParameter(1)),
+                   "l");
     for (int i = 0; i < 2; i++) leg1->AddEntry(mott_bmc_set[i], bmc_label[i], "PE");
     leg1->Draw();
 

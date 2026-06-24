@@ -97,9 +97,9 @@ void plot() {
 }
 
 void plot_cross_section() {
-    TFile *fin = TFile::Open("../data/q2_plot_output.root");
+    TFile *fin = TFile::Open("../data/q2_plot_output_0p7.root");
     if (!fin || fin->IsZombie()) {
-        std::cerr << "Cannot open ../data/q2_plot_output.root" << std::endl;
+        std::cerr << "Cannot open ../data/q2_plot_output_0p7.root" << std::endl;
         return;
     }
 
@@ -125,10 +125,10 @@ void plot_cross_section() {
     pad_top->Draw();
     pad_top->cd();
 
-    cross_section->SetTitle("e-p Cross Section @ 3.5 GeV");
+    cross_section->SetTitle("e-p Cross Section @ 0.7 GeV");
     cross_section->GetXaxis()->SetLabelSize(0.);
     cross_section->GetXaxis()->SetTitleSize(0.);
-    cross_section->GetYaxis()->SetTitle("d#sigma/d#Omega (mb/sr)");
+    cross_section->GetYaxis()->SetTitle("d#sigma/d#Omega (arbitrary units)");
     cross_section->GetYaxis()->SetTitleSize(0.060);
     cross_section->GetYaxis()->SetTitleOffset(0.95);
     cross_section->GetYaxis()->CenterTitle();
@@ -151,6 +151,15 @@ void plot_cross_section() {
     leg->AddEntry(gen_cross,     "Generator", "lp");
     leg->Draw();
 
+    TLatex *prelim = new TLatex(0.50, 0.48, "Very Preliminary");
+    prelim->SetNDC();
+    prelim->SetTextAlign(22);
+    prelim->SetTextFont(62);
+    prelim->SetTextSize(0.115);
+    prelim->SetTextAngle(24);
+    prelim->SetTextColorAlpha(kGray - 1, 0.25);
+    //prelim->Draw();
+
     // ── Lower pad: relative statistical error ─────────────────────────────
     cv->cd();
     TPad *pad_bot = new TPad("pad_bot", "", 0., 0., 1., 0.30);
@@ -165,7 +174,7 @@ void plot_cross_section() {
     pad_bot->cd();
 
     rel_err->SetTitle("");
-    rel_err->Scale(1./6.);
+    rel_err->Scale(sqrt(0.164753/3.18));
     rel_err->GetXaxis()->SetTitle("Q^{2} (GeV^{2})");
     rel_err->GetYaxis()->SetTitle("Stat. Error (%)");
     rel_err->GetXaxis()->SetTitleSize(0.12);
@@ -197,8 +206,152 @@ void plot_cross_section() {
     lab04->SetTextSize(0.09);
     lab04->Draw();
 
+    TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 21st 16:00");
+    stat_note1->SetNDC();
+    stat_note1->SetTextSize(0.070);
+    stat_note1->Draw();
+
     cv->cd();
     cv->SaveAs("cross_section.png");
+}
+
+void plot_cross_section_three_energy() {
+    const int nE = 3;
+    const char *files[nE] = {
+        "../data/q2_plot_output_0p7.root",
+        "../data/q2_plot_output_2p2.root",
+        "../data/q2_plot_output_3p5.root"
+    };
+    const char *labels[nE] = {"0.7 GeV", "2.2 GeV", "3.5 GeV"};
+    const char *output[nE] = {"cross_section_0p7.png", "cross_section_2p2.png", "cross_section_3p5.png"};
+    const double current_charge[nE] = {3.18, 78., 210.}; // mC
+    const double run_charge[nE]     = {0.164753, 0.248315, 4.639600}; // mC, charge used to make rel_err
+
+    gStyle->SetOptStat(0);
+
+    for (int i = 0; i < nE; i++) {
+        TFile *fin = TFile::Open(files[i]);
+        if (!fin || fin->IsZombie()) {
+            std::cerr << "Cannot open " << files[i] << std::endl;
+            return;
+        }
+
+        TH1F *h_cs = (TH1F*)fin->Get("cross_section");
+        TH1F *h_gen = (TH1F*)fin->Get("gen_cross");
+        TH1F *h_er = (TH1F*)fin->Get("rel_err");
+        if (!h_cs || !h_gen || !h_er) {
+            std::cerr << "Missing cross_section, gen_cross or rel_err in " << files[i] << std::endl;
+            fin->Close();
+            return;
+        }
+
+        TH1F *cross_section = (TH1F*)h_cs->Clone(Form("cross_section_%d_individual", i));
+        TH1F *gen_cross     = (TH1F*)h_gen->Clone(Form("gen_cross_%d_individual", i));
+        TH1F *rel_err       = (TH1F*)h_er->Clone(Form("rel_err_%d_individual", i));
+        cross_section->SetDirectory(nullptr);
+        gen_cross->SetDirectory(nullptr);
+        rel_err->SetDirectory(nullptr);
+        fin->Close();
+
+        TCanvas *cv = new TCanvas(Form("c_cross_section_%d_individual", i),
+                                  Form("Cross Section %s", labels[i]), 1000, 800);
+
+        TPad *pad_top = new TPad(Form("pad_top_%d_individual", i), "", 0., 0.30, 1., 1.);
+        pad_top->SetBottomMargin(0.02);
+        pad_top->SetLeftMargin(0.13);
+        pad_top->SetRightMargin(0.05);
+        pad_top->SetGrid();
+        pad_top->SetLogx();
+        pad_top->Draw();
+        pad_top->cd();
+
+        cross_section->SetTitle(Form("e-p Cross Section @ %s", labels[i]));
+        cross_section->GetXaxis()->SetLabelSize(0.);
+        cross_section->GetXaxis()->SetTitleSize(0.);
+        cross_section->GetYaxis()->SetTitle("d#sigma/d#Omega (arbitrary units)");
+        cross_section->GetYaxis()->SetTitleSize(0.060);
+        cross_section->GetYaxis()->SetTitleOffset(0.95);
+        cross_section->GetYaxis()->CenterTitle();
+        cross_section->SetMarkerStyle(20);
+        cross_section->SetMarkerSize(1.0);
+        cross_section->SetMarkerColor(kBlack);
+        cross_section->SetLineColor(kBlack);
+        cross_section->Draw("E1P");
+
+        gen_cross->SetLineColor(kRed + 1);
+        gen_cross->SetMarkerStyle(24);
+        gen_cross->SetMarkerColor(kRed + 1);
+        gen_cross->SetLineColor(kRed + 1);
+        gen_cross->Draw("E1P SAME");
+
+        TLegend *leg = new TLegend(0.55, 0.65, 0.90, 0.88);
+        leg->SetBorderSize(0);
+        leg->SetTextSize(0.050);
+        leg->AddEntry(cross_section, "Data",      "lp");
+        leg->AddEntry(gen_cross,     "Generator", "lp");
+        leg->Draw();
+
+        TLatex *prelim = new TLatex(0.50, 0.48, "Very Preliminary");
+        prelim->SetNDC();
+        prelim->SetTextAlign(22);
+        prelim->SetTextFont(62);
+        prelim->SetTextSize(0.115);
+        prelim->SetTextAngle(24);
+        //prelim->SetTextColorAlpha(kGray - 1, 0.25);
+        //prelim->Draw();
+
+        cv->cd();
+        TPad *pad_bot = new TPad(Form("pad_bot_%d_individual", i), "", 0., 0., 1., 0.30);
+        pad_bot->SetTopMargin(0.02);
+        pad_bot->SetBottomMargin(0.32);
+        pad_bot->SetLeftMargin(0.13);
+        pad_bot->SetRightMargin(0.05);
+        pad_bot->SetGrid();
+        pad_bot->SetLogx();
+        pad_bot->SetLogy();
+        pad_bot->Draw();
+        pad_bot->cd();
+
+        rel_err->SetTitle("");
+        rel_err->Scale(std::sqrt(run_charge[i] / current_charge[i]));
+        rel_err->GetXaxis()->SetTitle("Q^{2} (GeV^{2})");
+        rel_err->GetYaxis()->SetTitle("Stat. Error (%)");
+        rel_err->GetXaxis()->SetTitleSize(0.12);
+        rel_err->GetYaxis()->SetTitleSize(0.11);
+        rel_err->GetXaxis()->SetLabelSize(0.10);
+        rel_err->GetYaxis()->SetLabelSize(0.09);
+        rel_err->GetXaxis()->SetTitleOffset(1.0);
+        rel_err->GetYaxis()->SetTitleOffset(0.55);
+        rel_err->GetXaxis()->CenterTitle();
+        rel_err->GetYaxis()->CenterTitle();
+        rel_err->GetXaxis()->SetMoreLogLabels();
+        rel_err->GetXaxis()->SetNoExponent();
+        rel_err->GetYaxis()->SetMoreLogLabels();
+        rel_err->GetYaxis()->SetNoExponent();
+        rel_err->SetFillColor(kAzure - 9);
+        rel_err->SetLineColor(kBlue + 1);
+        rel_err->Draw("BAR");
+
+        pad_bot->Update();
+        Double_t uymin = pad_bot->GetUymin();
+        Double_t uymax = pad_bot->GetUymax();
+        Double_t yNDC  = pad_bot->GetBottomMargin() +
+                         (log10(0.4) - uymin) / (uymax - uymin) *
+                         (1. - pad_bot->GetTopMargin() - pad_bot->GetBottomMargin());
+        TLatex *lab04 = new TLatex(pad_bot->GetLeftMargin() - 0.01, yNDC, "0.4");
+        lab04->SetNDC();
+        lab04->SetTextAlign(32);
+        lab04->SetTextSize(0.09);
+        lab04->Draw();
+
+        TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 21st 16:00");
+        stat_note1->SetNDC();
+        stat_note1->SetTextSize(0.070);
+        stat_note1->Draw();
+
+        cv->cd();
+        cv->SaveAs(output[i]);
+    }
 }
 
 void plot_cross_section_all(){
@@ -211,7 +364,7 @@ void plot_cross_section_all(){
     const char *labels[nE] = {"0.7 GeV", "2.2 GeV", "3.5 GeV"};
     const int colors[nE] = {kBlue + 1, kGreen + 2, kRed + 1};
     const int markers[nE] = {20, 21, 22};
-    const double current_charge[nE] = {3.18, 43., 210.}; // mC
+    const double current_charge[nE] = {3.18, 78., 210.}; // mC
     const double run_charge[nE]     = { 0.164753,  0.248315,  4.639600}; // mC, charge used to make rel_err
     double stat_scale[nE] = {1., 1., 1.};
     for (int i = 0; i < nE; i++) {
@@ -326,7 +479,7 @@ void plot_cross_section_all(){
     pad_top->cd();
 
     TH1F *frame_top = new TH1F("frame_cross_section_all",
-                               "e-p Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (mb/sr)",
+                               "e-p Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (arbitrary units)",
                                100, x_min*0.9, x_max*1.1);
     frame_top->SetMinimum(cs_min*0.5);
     frame_top->SetMaximum(cs_max*2.0);
@@ -344,7 +497,7 @@ void plot_cross_section_all(){
     prelim->SetTextSize(0.115);
     prelim->SetTextAngle(24);
     prelim->SetTextColorAlpha(kGray + 1, 0.50);
-    prelim->Draw();
+    //prelim->Draw();
 
     TLegend *leg_top = new TLegend(0.40, 0.68, 0.90, 0.88);
     leg_top->SetBorderSize(0);
@@ -424,7 +577,7 @@ void plot_cross_section_all(){
         rel_err[i]->Draw("E1P SAME");
     }
 
-    TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 19th 12:00");
+    TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 21st 16:00");
     stat_note1->SetNDC();
     stat_note1->SetTextSize(0.070);
     stat_note1->Draw();
