@@ -78,15 +78,15 @@ static void fillHists(const std::vector<TString> &fnames,
             bool vertex_in = false;
 
             if (theta < angle_edge[0]) {
-                vertex_in = (fabs(vz) <= vertex_resolution[0]);
+                vertex_in = (fabs(vz) <= 3. * vertex_resolution[0]);
             } else if (theta >= angle_edge[0] && theta < angle_edge[1]) {
-                vertex_in = (fabs(vz) <= vertex_resolution[1]);
+                vertex_in = (fabs(vz) <= 3. * vertex_resolution[1]);
             } else if (theta >= angle_edge[1] && theta < angle_edge[2]) {
-                vertex_in = (fabs(vz) <= vertex_resolution[2]);
+                vertex_in = (fabs(vz) <= 3. * vertex_resolution[2]);
             } else if (theta >= angle_edge[2] && theta < angle_edge[3]) {
-                vertex_in = (fabs(vz) <= vertex_resolution[3]);
+                vertex_in = (fabs(vz) <= 3. * vertex_resolution[3]);
             } else if (theta >= angle_edge[3]) {
-                vertex_in = (fabs(vz) <= vertex_resolution[4]);
+                vertex_in = (fabs(vz) <= 3. * vertex_resolution[4]);
             }
             if(!vertex_cut) vertex_in = true;
 

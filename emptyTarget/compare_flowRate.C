@@ -23,13 +23,13 @@
 #include "TStyle.h"
 
 // Fill in the A/B/C input file names for each flow setting here.
-static const char *fileA600Flow = "A_600cc_gem.root";
-static const char *fileB600Flow = "B_600cc_gem.root";
-static const char *fileC600Flow = "C_600cc_gem.root";
+static const char *fileA600Flow = "A_600cc_vertex.root";
+static const char *fileB600Flow = "B_600cc_vertex.root";
+static const char *fileC600Flow = "C_600cc_vertex.root";
 
-static const char *fileA1300Flow = "A_1300cc_gem.root";
-static const char *fileB1300Flow = "B_1300cc_gem.root";
-static const char *fileC1300Flow = "C_1300cc_gem.root";
+static const char *fileA1300Flow = "A_1300cc_vertex.root";
+static const char *fileB1300Flow = "B_1300cc_vertex.root";
+static const char *fileC1300Flow = "C_1300cc_vertex.root";
 
 static TH1 *loadNormalizedMottYield(const char *fileName, const char *tag)
 {
