@@ -63,9 +63,7 @@ static void fillHists(const std::vector<TString> &fnames,
             vy = y1 + t * dy;
             vz = z1 + t * dz;
 
-            bool vertex_valid = fabs(vz) < 300.0 * 3.0;
-
-            if (isMott(E, Ebeam, resolution) && vertex_valid) {
+            if (isMott(E, Ebeam, resolution)) {
                 hits_mott->Fill(x, y);
                 E_angle_mott->Fill(theta, E);
                 mott_yield->Fill(theta);
