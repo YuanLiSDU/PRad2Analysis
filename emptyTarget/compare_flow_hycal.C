@@ -76,11 +76,11 @@ static TH1F *makeHycalMottSignalAmB(int runA, int runB, const char *folder, cons
     TH1F *hB = loadHycalMottYield(runB, folder, Form("%s_B", tag));
     if (!hA || !hB) return nullptr;
 
-    /*const double a_scale = hycalAExtraScale(runA);
+    const double a_scale = hycalAExtraScale(runA);
     if (a_scale != 1.0) {
         hA->Scale(a_scale);
         std::cout << "Scaled A run " << runA << " by " << a_scale << std::endl;
-    }*/
+    }
 
     TH1F *signal = (TH1F*)hA->Clone(Form("hycal_mott_signal_AmB_%s", tag));
     signal->SetDirectory(nullptr);
@@ -94,11 +94,11 @@ static TH1F *makeHycalMollerSignalAmB(int runA, int runB, const char *folder, co
     TH1F *hB = loadHycalMollerYield(runB, folder, Form("%s_B", tag));
     if (!hA || !hB) return nullptr;
 
-    /*const double a_scale = hycalAExtraScale(runA);
+    const double a_scale = hycalAExtraScale(runA);
     if (a_scale != 1.0) {
         hA->Scale(a_scale);
         std::cout << "Scaled A run " << runA << " by " << a_scale << std::endl;
-    }*/
+    }
 
     TH1F *signal = (TH1F*)hA->Clone(Form("hycal_moller_signal_AmB_%s", tag));
     signal->SetDirectory(nullptr);

@@ -1,6 +1,8 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
 
+bool vertex_cut = true;
+
 // ── Fill histograms for one or more input files ───────────────────────────
 static void fillHists(const std::vector<TString> &fnames,
                       TH2F *hit_all, TH2F *E_angle,
@@ -63,7 +65,32 @@ static void fillHists(const std::vector<TString> &fnames,
             vy = y1 + t * dy;
             vz = z1 + t * dz;
 
-            if (isMott(E, Ebeam, resolution)) {
+            float gem1x = 6270.f / z1 * x1;
+            float gem1y = 6270.f / z1 * y1;
+            float gem2x = 6270.f / z2 * x2;
+            float gem2y = 6270.f / z2 * y2;
+
+            if (std::abs(gem1x - gem2x) > 50.f || std::abs(gem1y - gem2y) > 50.f) continue;
+
+            float angle_edge[4] = {0.8f, 1.2f, 2.0f, 3.0f};
+            float vertex_resolution[5] = {417.f, 252.f, 165.f, 101.f, 76.f};
+
+            bool vertex_in = false;
+
+            if (theta < angle_edge[0]) {
+                vertex_in = (fabs(vz) <= vertex_resolution[0]);
+            } else if (theta >= angle_edge[0] && theta < angle_edge[1]) {
+                vertex_in = (fabs(vz) <= vertex_resolution[1]);
+            } else if (theta >= angle_edge[1] && theta < angle_edge[2]) {
+                vertex_in = (fabs(vz) <= vertex_resolution[2]);
+            } else if (theta >= angle_edge[2] && theta < angle_edge[3]) {
+                vertex_in = (fabs(vz) <= vertex_resolution[3]);
+            } else if (theta >= angle_edge[3]) {
+                vertex_in = (fabs(vz) <= vertex_resolution[4]);
+            }
+            if(!vertex_cut) vertex_in = true;
+
+            if (isMott(E, Ebeam, resolution) && vertex_in) {
                 hits_mott->Fill(x, y);
                 E_angle_mott->Fill(theta, E);
                 mott_yield->Fill(theta);

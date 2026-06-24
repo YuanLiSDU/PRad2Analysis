@@ -1,8 +1,8 @@
 #include "../EventData.h"
 #include "../PhysicsTools.h"
 
-float Ebeam = 3488.43f; // MeV
-float resolution = 0.037f;
+float Ebeam = 2239.5f; // MeV
+float resolution = 0.035f;
 
 static TF1 *fitVertexPeak(TH1F *hist, Color_t color)
 {
@@ -28,20 +28,27 @@ static TF1 *fitVertexPeak(TH1F *hist, Color_t color)
 
 void vertex_recon(){
 
-    TFile *file = TFile::Open("../data/calib/prad_024713_recon.root");
+    TFile *file = TFile::Open("../data/recon/2.2GeV/prad_025260_recon.root");
     TTree *tree = (TTree*)file->Get("recon");
 
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
-    TH1F *h_vz  = new TH1F("h_vz",  "Reconstructed Vertex Z of e-p Events at 3.5 GeV;z_{vertex} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz  = new TH1F("h_vz",  "Reconstructed Vertex Z of e-p Events at 2.2 GeV;z_{vertex} (mm);Counts", 500, -3500, 6500);
     TH1F *h_dca = new TH1F("h_dca", "Track-to-beam DCA;DCA (mm);Counts", 600, 0, 60);
 
-    TH1F *h_vz_1deg = new TH1F("h_vz_1deg",  "Vertex Z from closest approach (theta~1deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_2deg = new TH1F("h_vz_2deg",  "Vertex Z from closest approach (theta~2deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_3deg = new TH1F("h_vz_3deg",  "Vertex Z from closest approach (theta~3deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    float angle_edge[4] = {0.8f, 1.2f, 2.0f, 3.0f};
 
-    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
+    TH1F *h_vz_0p7deg = new TH1F("h_vz_0p7deg",  "Vertex Z from closest approach (theta~0.7deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_1p0deg = new TH1F("h_vz_1p0deg",  "Vertex Z from closest approach (theta~1.0deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_1p6deg = new TH1F("h_vz_1p6deg",  "Vertex Z from closest approach (theta~1.6deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_2p5deg = new TH1F("h_vz_2p5deg",  "Vertex Z from closest approach (theta~2.5deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_3p5deg = new TH1F("h_vz_3p5deg",  "Vertex Z from closest approach (theta~3.5deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+
+    TH1F *deltaX_gems = new TH1F("deltaX_gems", "Difference in X between two GEM hits;#DeltaX (mm);Counts", 200, -50, 50);
+    TH1F *deltaY_gems = new TH1F("deltaY_gems", "Difference in Y between two GEM hits;#DeltaY (mm);Counts", 200, -50, 50);
+
+    for (Long64_t i = 0; i < tree->GetEntries()/10; i++) {
         tree->GetEntry(i);
 
         if(i%10000 == 0)
@@ -61,6 +68,16 @@ void vertex_recon(){
         x[3] = ev.cl_x[0]; y[3] = ev.cl_y[0]; z[3] = ev.cl_z[0];
         E = ev.cl_energy[0];
         float theta = atan2(std::sqrt(x[3]*x[3] + y[3]*y[3]), z[3]) * 180.f / M_PI;
+
+        float gem1x = 6270.f / z[1] * x[1];
+        float gem1y = 6270.f / z[1] * y[1];
+        float gem2x = 6270.f / z[2] * x[2];
+        float gem2y = 6270.f / z[2] * y[2];
+        
+        deltaX_gems->Fill(gem1x - gem2x);
+        deltaY_gems->Fill(gem1y - gem2y);
+
+        if (std::abs(gem1x - gem2x) > 50.f || std::abs(gem1y - gem2y) > 50.f) continue;
 
         float vx = 0.f, vy = 0.f, vz = 0.f;
 
@@ -83,12 +100,16 @@ void vertex_recon(){
         h_vz->Fill(vz);
         h_dca->Fill(dca);
 
-        if (fabs(theta - 1.f) < 0.2f) {
-            h_vz_1deg->Fill(vz);
-        } else if (fabs(theta - 2.f) < 0.3f) {
-            h_vz_2deg->Fill(vz);
-        } else if (fabs(theta - 3.f) < 0.5f) {
-            h_vz_3deg->Fill(vz);
+        if (theta < angle_edge[0]) {
+            h_vz_0p7deg->Fill(vz);
+        } else if (theta >= angle_edge[0] && theta < angle_edge[1]) {
+            h_vz_1p0deg->Fill(vz);
+        } else if (theta >= angle_edge[1] && theta < angle_edge[2]) {
+            h_vz_1p6deg->Fill(vz);
+        } else if (theta >= angle_edge[2] && theta < angle_edge[3]) {
+            h_vz_2p5deg->Fill(vz);
+        } else if (theta >= angle_edge[3]) {
+            h_vz_3p5deg->Fill(vz);
         }
 
     }
@@ -97,33 +118,48 @@ void vertex_recon(){
     c->Divide(2, 1);
     h_vz->SetStats(0);
     h_vz->SetLineColor(kBlack);
-    h_vz_1deg->SetLineColor(kRed);
-    h_vz_2deg->SetLineColor(kGreen+2);
-    h_vz_3deg->SetLineColor(kBlue);
-    h_vz->SetLineWidth(2.5);
-    h_vz_1deg->SetLineWidth(2.5);
-    h_vz_2deg->SetLineWidth(2.5);
-    h_vz_3deg->SetLineWidth(2.5);
+    h_vz_0p7deg->SetLineColor(kRed);
+    h_vz_1p0deg->SetLineColor(kGreen+2);
+    h_vz_1p6deg->SetLineColor(kBlue);
+    h_vz_2p5deg->SetLineColor(kMagenta);
+    h_vz_3p5deg->SetLineColor(kCyan);
+    h_vz->SetLineWidth(2);
+    h_vz_0p7deg->SetLineWidth(2);
+    h_vz_1p0deg->SetLineWidth(2);
+    h_vz_1p6deg->SetLineWidth(2);
+    h_vz_2p5deg->SetLineWidth(2);
+    h_vz_3p5deg->SetLineWidth(2);
 
     c->cd(1);
     h_vz->Draw();
-    h_vz_1deg->Draw("SAME");
-    h_vz_2deg->Draw("SAME");
-    h_vz_3deg->Draw("SAME");
+    h_vz_0p7deg->Draw("SAME");
+    h_vz_1p0deg->Draw("SAME");
+    h_vz_1p6deg->Draw("SAME");
+    h_vz_2p5deg->Draw("SAME");
+    h_vz_3p5deg->Draw("SAME");
 
     TF1 *fit_all  = fitVertexPeak(h_vz, kBlack);
-    TF1 *fit_1deg = fitVertexPeak(h_vz_1deg, kRed);
-    TF1 *fit_2deg = fitVertexPeak(h_vz_2deg, kGreen+2);
-    TF1 *fit_3deg = fitVertexPeak(h_vz_3deg, kBlue);
+    TF1 *fit_0p7deg = fitVertexPeak(h_vz_0p7deg, kRed);
+    TF1 *fit_1p0deg = fitVertexPeak(h_vz_1p0deg, kGreen+2);
+    TF1 *fit_1p6deg = fitVertexPeak(h_vz_1p6deg, kBlue);
+    TF1 *fit_2p5deg = fitVertexPeak(h_vz_2p5deg, kMagenta);
+    TF1 *fit_3p5deg = fitVertexPeak(h_vz_3p5deg, kCyan);
 
     TLegend *leg_vz = new TLegend(0.60, 0.65, 0.88, 0.88);
     leg_vz->SetBorderSize(0);
     leg_vz->AddEntry(h_vz, Form("All (#sigma = %.1f mm)", fit_all ? fit_all->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_1deg, Form("theta ~ 1 deg (#sigma = %.1f mm)", fit_1deg ? fit_1deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_2deg, Form("theta ~ 2 deg (#sigma = %.1f mm)", fit_2deg ? fit_2deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_3deg, Form("theta ~ 3 deg (#sigma = %.1f mm)", fit_3deg ? fit_3deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_0p7deg, Form("theta ~ 0.7 deg (#sigma = %.1f mm)", fit_0p7deg ? fit_0p7deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_1p0deg, Form("theta ~ 1.0 deg (#sigma = %.1f mm)", fit_1p0deg ? fit_1p0deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_1p6deg, Form("theta ~ 1.6 deg (#sigma = %.1f mm)", fit_1p6deg ? fit_1p6deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_2p5deg, Form("theta ~ 2.5 deg (#sigma = %.1f mm)", fit_2p5deg ? fit_2p5deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_3p5deg, Form("theta ~ 3.5 deg (#sigma = %.1f mm)", fit_3p5deg ? fit_3p5deg->GetParameter(2) : 0.), "l");
     leg_vz->Draw();
     c->cd(2); h_dca->Draw();
     c->SaveAs("vertex_recon.png");
+
+    TCanvas *c_gems = new TCanvas("c_gems", "GEM hits difference", 1200, 500);
+    c_gems->Divide(2, 1);
+    c_gems->cd(1); deltaX_gems->Draw();
+    c_gems->cd(2); deltaY_gems->Draw();
 
 }
