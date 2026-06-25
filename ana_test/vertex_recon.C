@@ -28,7 +28,7 @@ static TF1 *fitVertexPeak(TH1F *hist, Color_t color)
 
 void vertex_recon(){
 
-    TFile *file = TFile::Open("../data/recon/2.2GeV/prad_025260_recon.root");
+    TFile *file = TFile::Open("../data/recon/2.2GeV/prad_025202_filtered.root");
     TTree *tree = (TTree*)file->Get("recon");
 
     ReconEventData ev;
@@ -48,7 +48,7 @@ void vertex_recon(){
     TH1F *deltaX_gems = new TH1F("deltaX_gems", "Difference in X between two GEM hits;#DeltaX (mm);Counts", 200, -50, 50);
     TH1F *deltaY_gems = new TH1F("deltaY_gems", "Difference in Y between two GEM hits;#DeltaY (mm);Counts", 200, -50, 50);
 
-    for (Long64_t i = 0; i < tree->GetEntries()/10; i++) {
+    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
         tree->GetEntry(i);
 
         if(i%10000 == 0)
