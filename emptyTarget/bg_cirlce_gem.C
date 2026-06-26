@@ -37,32 +37,46 @@ static const double liveChargeC = 1.0;
 static const char *outputRoot = "circle_gem_background.root";
 static const char *outputPng  = "circle_gem_background.png";
 
-static const double beamEnergy = 2239.51;  // MeV
+static const double Ebeam = 2239.51;  // MeV
 static const bool applyVertexCut = false;
 
-static TH1F *fillNormalizedMottYield(const char *fileName,
-                                     double liveCharge,
-                                     const char *tag)
+struct CircleYields {
+    TH1F *mott = nullptr;
+    TH1F *moller = nullptr;
+};
+
+static CircleYields fillNormalizedYields(const char *fileName,
+                                         double liveCharge,
+                                         const char *tag)
 {
+    CircleYields yields;
     if (liveCharge <= 0.) {
         std::cerr << "Invalid live charge for " << tag << ": "
                   << liveCharge << std::endl;
-        return nullptr;
+        return yields;
     }
 
     TChain tree("recon");
     if (tree.Add(fileName) == 0 || tree.GetEntries() == 0) {
         std::cerr << "Cannot read recon entries from " << fileName << std::endl;
-        return nullptr;
+        return yields;
     }
 
-    TH1F *yield = new TH1F(
+    TH1F *mottYield = new TH1F(
         Form("mott_yield_%s", tag),
         Form("Circle %s Mott Yield;Reconstructed Scattering Angle [deg];"
              "Count / live charge", tag),
         120, 0., 6.);
-    yield->SetDirectory(nullptr);
-    yield->Sumw2();
+    mottYield->SetDirectory(nullptr);
+    mottYield->Sumw2();
+
+    TH1F *mollerYield = new TH1F(
+        Form("moller_yield_%s", tag),
+        Form("Circle %s Moller Yield;Reconstructed Scattering Angle [deg];"
+             "Count / live charge", tag),
+        120, 0., 6.);
+    mollerYield->SetDirectory(nullptr);
+    mollerYield->Sumw2();
 
     ReconEventData ev;
     setupReconBranches(&tree, ev);
@@ -79,7 +93,7 @@ static TH1F *fillNormalizedMottYield(const char *fileName,
     for (Long64_t i = 0; i < entries; ++i) {
         if (i % 10000 == 0)
             std::cout << "  " << i << " / " << entries << "\r" << std::flush;
-
+        std::vector<HCHit> moller_Hits_candidate;
         tree.GetEntry(i);
         for (int j = 0; j < ev.matchNum; ++j) {
             const float x1 = ev.mHit_gx[j][1];
@@ -134,16 +148,100 @@ static TH1F *fillNormalizedMottYield(const char *fileName,
                 std::abs(vertexZ) <= 3.f * vertexResolution[resolutionBin];
 
             if (vertexIn &&
-                isMott(energy, beamEnergy, resolution))
-                yield->Fill(theta);
+                isMott(energy, Ebeam, resolution))
+                mottYield->Fill(theta);
+
+            if (energy > 80. &&
+                energy < Ebeam - 2. * resolution * Ebeam /
+                             std::sqrt(Ebeam / 1000.))
+                moller_Hits_candidate.emplace_back(x, y, 6270.f, energy);
+
         }
+        //select Moller event and fill moller hist
+        std::sort(moller_Hits_candidate.begin(),
+                  moller_Hits_candidate.end(),
+                  [](const HCHit &a, const HCHit &b) {
+                      return a.energy > b.energy;
+                  });
+
+        MollerData mollerData_event;
+        const int nCand = moller_Hits_candidate.size();
+        for (int ii = 0; ii < nCand; ++ii) {
+            const HCHit &hi = moller_Hits_candidate[ii];
+            const float theta_i =
+                std::atan2(std::sqrt(hi.x * hi.x + hi.y * hi.y), hi.z) *
+                180.f / M_PI;
+            for (int jj = nCand - 1; jj > ii; --jj) {
+                const HCHit &hj = moller_Hits_candidate[jj];
+                const float theta_j =
+                    std::atan2(std::sqrt(hj.x * hj.x + hj.y * hj.y),
+                               hj.z) *
+                    180.f / M_PI;
+                if (isMoller_kinematic(theta_i, hi.energy,
+                                       theta_j, hj.energy,
+                                       Ebeam, resolution)) {
+                    MollerEvent candidate = {
+                        DataPoint(hi.x, hi.y, hi.z, hi.energy),
+                        DataPoint(hj.x, hj.y, hj.z, hj.energy)
+                    };
+                    if (std::fabs(GetMollerPhiDiff(candidate)) > 10.f)
+                        continue;
+                    mollerData_event.emplace_back(candidate);
+                }
+            }
+        }
+
+        if (mollerData_event.size() == 0) continue;
+
+        if (mollerData_event.size() > 1) {
+            auto getPt = [](const MollerEvent &mev) -> float {
+                const float sin_t1 =
+                    std::sqrt(mev.first.x * mev.first.x +
+                              mev.first.y * mev.first.y) /
+                    mev.first.z;
+                const float sin_t2 =
+                    std::sqrt(mev.second.x * mev.second.x +
+                              mev.second.y * mev.second.y) /
+                    mev.second.z;
+                return std::fabs(mev.first.E * sin_t1 -
+                                 mev.second.E * sin_t2);
+            };
+            auto best = std::min_element(
+                mollerData_event.begin(), mollerData_event.end(),
+                [&](const MollerEvent &a, const MollerEvent &b) {
+                    return getPt(a) < getPt(b);
+                });
+            MollerEvent bestPair = *best;
+            mollerData_event.clear();
+            mollerData_event.push_back(bestPair);
+        }
+
+        const MollerEvent &mev = mollerData_event.front();
+        const float t1 =
+            std::atan2(std::sqrt(mev.first.x * mev.first.x +
+                                 mev.first.y * mev.first.y),
+                       mev.first.z) *
+            180.f / M_PI;
+        const float t2 =
+            std::atan2(std::sqrt(mev.second.x * mev.second.x +
+                                 mev.second.y * mev.second.y),
+                       mev.second.z) *
+            180.f / M_PI;
+        mollerYield->Fill(t1);
+        mollerYield->Fill(t2);
+    
     }
     std::cout << "  " << entries << " / " << entries << std::endl;
 
-    yield->Scale(1. / liveCharge);
-    std::cout << "  normalized Mott integral = " << yield->Integral()
+    mottYield->Scale(1. / liveCharge);
+    mollerYield->Scale(1. / liveCharge);
+    std::cout << "  normalized Mott integral = " << mottYield->Integral()
               << std::endl;
-    return yield;
+    std::cout << "  normalized Moller integral = " << mollerYield->Integral()
+              << std::endl;
+    yields.mott = mottYield;
+    yields.moller = mollerYield;
+    return yields;
 }
 
 static TH1 *rebinAboveTheta(TH1 *hist, double theta, int group,
@@ -227,13 +325,19 @@ void bg_cirlce_gem()
 {
     gStyle->SetOptStat(0);
 
-    TH1F *histAOriginal =
-        fillNormalizedMottYield(fileA, liveChargeA, "A");
-    TH1F *histBOriginal =
-        fillNormalizedMottYield(fileB, liveChargeB, "B");
-    TH1F *histCOriginal =
-        fillNormalizedMottYield(fileC, liveChargeC, "C");
-    if (!histAOriginal || !histBOriginal || !histCOriginal) return;
+    CircleYields yieldsA = fillNormalizedYields(fileA, liveChargeA, "A");
+    CircleYields yieldsB = fillNormalizedYields(fileB, liveChargeB, "B");
+    CircleYields yieldsC = fillNormalizedYields(fileC, liveChargeC, "C");
+    if (!yieldsA.mott || !yieldsB.mott || !yieldsC.mott ||
+        !yieldsA.moller || !yieldsB.moller || !yieldsC.moller)
+        return;
+
+    TH1F *histAOriginal = yieldsA.mott;
+    TH1F *histBOriginal = yieldsB.mott;
+    TH1F *histCOriginal = yieldsC.mott;
+    TH1F *mollerAOriginal = yieldsA.moller;
+    TH1F *mollerBOriginal = yieldsB.moller;
+    TH1F *mollerCOriginal = yieldsC.moller;
 
     // Match compare_flowRate.C: retain the original bins through 2 degrees,
     // then combine every three bins above 2 degrees.
@@ -243,10 +347,21 @@ void bg_cirlce_gem()
         histBOriginal, 2.0, 3, "mott_yield_B_rebin3_above2deg");
     TH1 *histC = rebinAboveTheta(
         histCOriginal, 2.0, 3, "mott_yield_C_rebin3_above2deg");
+    TH1 *mollerA = rebinAboveTheta(
+        mollerAOriginal, 2.0, 3, "moller_yield_A_rebin3_above2deg");
+    TH1 *mollerB = rebinAboveTheta(
+        mollerBOriginal, 2.0, 3, "moller_yield_B_rebin3_above2deg");
+    TH1 *mollerC = rebinAboveTheta(
+        mollerCOriginal, 2.0, 3, "moller_yield_C_rebin3_above2deg");
 
     TH1 *signal = dynamic_cast<TH1 *>(histA->Clone("mott_signal_AminusB"));
     signal->SetDirectory(nullptr);
     signal->Add(histB, -1.);
+
+    TH1 *mollerSignal =
+        dynamic_cast<TH1 *>(mollerA->Clone("moller_signal_AminusB"));
+    mollerSignal->SetDirectory(nullptr);
+    mollerSignal->Add(mollerB, -1.);
 
     TH1 *bMinusC = dynamic_cast<TH1 *>(histB->Clone("mott_background_BminusC"));
     bMinusC->SetDirectory(nullptr);
@@ -346,10 +461,17 @@ void bg_cirlce_gem()
     histAOriginal->Write();
     histBOriginal->Write();
     histCOriginal->Write();
+    mollerAOriginal->Write();
+    mollerBOriginal->Write();
+    mollerCOriginal->Write();
     histA->Write();
     histB->Write();
     histC->Write();
+    mollerA->Write();
+    mollerB->Write();
+    mollerC->Write();
     signal->Write();
+    mollerSignal->Write();
     bMinusC->Write();
     ratioB->Write();
     ratioC->Write();
