@@ -34,21 +34,32 @@ void vertex_recon(){
     ReconEventData ev;
     setupReconBranches(tree, ev);
 
-    TH1F *h_vz  = new TH1F("h_vz",  "Reconstructed Vertex Z of e-p Events at 2.2 GeV;z_{vertex} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_dca = new TH1F("h_dca", "Track-to-beam DCA;DCA (mm);Counts", 600, 0, 60);
+    TH1F *h_vz  = new TH1F("h_vz",  "Reconstructed Vertex Z of e-p Events at 2.2 GeV;z_{vertex} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_dca = new TH1F("h_dca", "Track-to-beam DCA;DCA (mm);Counts", 1200, 0, 120);
+    TH2F *h_dca_vs_vz = new TH2F("h_dca_vs_vz", "Track-to-beam DCA vs Vertex Z;z_{vertex} (mm);DCA (mm)", 300, -5500, 6500, 1200, 0, 120);
+
+    TH2F *h_vx_vy = new TH2F("h_vx_vy", "Vertex X vs Vertex Y;x_{vertex} (mm);y_{vertex} (mm)", 500, -50, 50, 500, -50, 50);
 
     float angle_edge[4] = {0.8f, 1.2f, 2.0f, 3.0f};
 
-    TH1F *h_vz_0p7deg = new TH1F("h_vz_0p7deg",  "Vertex Z from closest approach (theta~0.7deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_1p0deg = new TH1F("h_vz_1p0deg",  "Vertex Z from closest approach (theta~1.0deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_1p6deg = new TH1F("h_vz_1p6deg",  "Vertex Z from closest approach (theta~1.6deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_2p5deg = new TH1F("h_vz_2p5deg",  "Vertex Z from closest approach (theta~2.5deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
-    TH1F *h_vz_3p5deg = new TH1F("h_vz_3p5deg",  "Vertex Z from closest approach (theta~3.5deg);z_{vtx} (mm);Counts", 500, -3500, 6500);
+    TH1F *h_vz_0p7deg = new TH1F("h_vz_0p7deg",  "Vertex Z from closest approach (theta~0.7deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_1p0deg = new TH1F("h_vz_1p0deg",  "Vertex Z from closest approach (theta~1.0deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_1p6deg = new TH1F("h_vz_1p6deg",  "Vertex Z from closest approach (theta~1.6deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_2p5deg = new TH1F("h_vz_2p5deg",  "Vertex Z from closest approach (theta~2.5deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_3p5deg = new TH1F("h_vz_3p5deg",  "Vertex Z from closest approach (theta~3.5deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+
+    TH1F *h_vz_0p7deg_proj = new TH1F("h_vz_0p7deg_proj",  "Vertex Z from projected track (theta~0.7deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_1p0deg_proj = new TH1F("h_vz_1p0deg_proj",  "Vertex Z from projected track (theta~1.0deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_1p6deg_proj = new TH1F("h_vz_1p6deg_proj",  "Vertex Z from projected track (theta~1.6deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_2p5deg_proj = new TH1F("h_vz_2p5deg_proj",  "Vertex Z from projected track (theta~2.5deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+    TH1F *h_vz_3p5deg_proj = new TH1F("h_vz_3p5deg_proj",  "Vertex Z from projected track (theta~3.5deg);z_{vtx} (mm);Counts", 300, -5500, 6500);
+
+    TH1F *h_phi_diff = new TH1F("h_phi_diff", "Difference in phi between two GEM hits;#Delta#phi (deg);Counts", 600, -30, 30);
 
     TH1F *deltaX_gems = new TH1F("deltaX_gems", "Difference in X between two GEM hits;#DeltaX (mm);Counts", 200, -50, 50);
     TH1F *deltaY_gems = new TH1F("deltaY_gems", "Difference in Y between two GEM hits;#DeltaY (mm);Counts", 200, -50, 50);
 
-    for (Long64_t i = 0; i < tree->GetEntries(); i++) {
+    for (Long64_t i = 0; i < tree->GetEntries()/10; i++) {
         tree->GetEntry(i);
 
         if(i%10000 == 0)
@@ -77,7 +88,7 @@ void vertex_recon(){
         deltaX_gems->Fill(gem1x - gem2x);
         deltaY_gems->Fill(gem1y - gem2y);
 
-        if (std::abs(gem1x - gem2x) > 50.f || std::abs(gem1y - gem2y) > 50.f) continue;
+        if (std::abs(gem1x - gem2x) > 5.f || std::abs(gem1y - gem2y) > 5.f) continue;
 
         float vx = 0.f, vy = 0.f, vz = 0.f;
 
@@ -96,22 +107,49 @@ void vertex_recon(){
         vy = y1 + t * dy;
         vz = z1 + t * dz;
 
-        const float dca = std::sqrt(vx * vx + vy * vy);
+        float dca = std::sqrt(vx * vx + vy * vy);
+        dca = 1.f;
+        if (dca > 40.f) continue;
         h_vz->Fill(vz);
         h_dca->Fill(dca);
+        h_dca_vs_vz->Fill(vz, dca);
+        h_vx_vy->Fill(vx, vy);
 
-        if (theta < angle_edge[0]) {
+        if (theta < angle_edge[0] && dca < 40) {
             h_vz_0p7deg->Fill(vz);
-        } else if (theta >= angle_edge[0] && theta < angle_edge[1]) {
+        } else if (theta >= angle_edge[0] && theta < angle_edge[1] && dca < 30) {
             h_vz_1p0deg->Fill(vz);
-        } else if (theta >= angle_edge[1] && theta < angle_edge[2]) {
+        } else if (theta >= angle_edge[1] && theta < angle_edge[2] && dca < 10) {
             h_vz_1p6deg->Fill(vz);
-        } else if (theta >= angle_edge[2] && theta < angle_edge[3]) {
+        } else if (theta >= angle_edge[2] && theta < angle_edge[3] && dca < 10) {
             h_vz_2p5deg->Fill(vz);
-        } else if (theta >= angle_edge[3]) {
+        } else if (theta >= angle_edge[3] && dca < 10) {
             h_vz_3p5deg->Fill(vz);
         }
 
+        // Fill phi difference histogram
+        float phi1 = atan2(y[1], x[1]) * 180.f / M_PI;
+        float phi2 = atan2(y[2], x[2]) * 180.f / M_PI;
+        float dphi = phi1 - phi2;
+        h_phi_diff->Fill(dphi);
+
+        // radial distance projection to vertex Z recon
+        float r1 = std::sqrt(x[1] * x[1] + y[1] * y[1]);
+        float r2 = std::sqrt(x[2] * x[2] + y[2] * y[2]);
+        
+        float z_proj = (r2 * z[1] - r1 * z[2]) / (r2 - r1);
+
+        if(theta < angle_edge[0]) {
+            h_vz_0p7deg_proj->Fill(z_proj);
+        } else if (theta >= angle_edge[0] && theta < angle_edge[1]) {
+            h_vz_1p0deg_proj->Fill(z_proj);
+        } else if (theta >= angle_edge[1] && theta < angle_edge[2]) {
+            h_vz_1p6deg_proj->Fill(z_proj);
+        } else if (theta >= angle_edge[2] && theta < angle_edge[3]) {
+            h_vz_2p5deg_proj->Fill(z_proj);
+        } else if (theta >= angle_edge[3]) {
+            h_vz_3p5deg_proj->Fill(z_proj);
+        }
     }
 
     TCanvas *c = new TCanvas("c_vertex", "Vertex reconstruction", 1200, 500);
@@ -162,4 +200,62 @@ void vertex_recon(){
     c_gems->cd(1); deltaX_gems->Draw();
     c_gems->cd(2); deltaY_gems->Draw();
 
+    TCanvas *c_dca_vs_vz = new TCanvas("c_dca_vs_vz", "DCA vs Vertex Z", 1200, 500);
+    h_dca_vs_vz->Draw();
+    c_dca_vs_vz->SaveAs("dca_vs_vz.png");
+
+    TCanvas *c_vx_vy = new TCanvas("c_vx_vy", "Vertex X vs Vertex Y", 1200, 500);
+    h_vx_vy->Draw("COLZ");
+    c_vx_vy->SaveAs("vx_vs_vy.png");
+
+    // Compare the two vertex-Z reconstruction methods in each angle range.
+    TH1F *h_vz_closest[5] = {
+        h_vz_0p7deg, h_vz_1p0deg, h_vz_1p6deg,
+        h_vz_2p5deg, h_vz_3p5deg
+    };
+    TH1F *h_vz_projected[5] = {
+        h_vz_0p7deg_proj, h_vz_1p0deg_proj, h_vz_1p6deg_proj,
+        h_vz_2p5deg_proj, h_vz_3p5deg_proj
+    };
+    const char *angle_label[5] = {
+        "#theta < 0.8 deg", "0.8 #leq #theta < 1.2 deg",
+        "1.2 #leq #theta < 2.0 deg", "2.0 #leq #theta < 3.0 deg",
+        "#theta #geq 3.0 deg"
+    };
+    const char *angle_tag[5] = {"0p7", "1p0", "1p6", "2p5", "3p5"};
+
+    for (int i = 0; i < 5; ++i) {
+        TCanvas *c_compare = new TCanvas(
+            Form("c_vz_compare_%s", angle_tag[i]),
+            Form("Vertex Z comparison, %s", angle_label[i]), 900, 650);
+
+        h_vz_closest[i]->SetTitle(
+            Form("Vertex Z comparison (%s);z_{vtx} (mm);Counts", angle_label[i]));
+        h_vz_closest[i]->SetStats(0);
+        h_vz_projected[i]->SetStats(0);
+        h_vz_closest[i]->SetLineColor(kBlue + 1);
+        h_vz_projected[i]->SetLineColor(kRed + 1);
+        h_vz_closest[i]->SetLineWidth(2);
+        h_vz_projected[i]->SetLineWidth(2);
+        const double max_count = h_vz_closest[i]->GetMaximum() >
+                                 h_vz_projected[i]->GetMaximum()
+                               ? h_vz_closest[i]->GetMaximum()
+                               : h_vz_projected[i]->GetMaximum();
+        if (max_count > 0.) h_vz_closest[i]->SetMaximum(1.15 * max_count);
+
+        h_vz_closest[i]->Draw("HIST");
+        h_vz_projected[i]->Draw("HIST SAME");
+
+        TLegend *leg_compare = new TLegend(0.61, 0.75, 0.88, 0.88);
+        leg_compare->SetBorderSize(0);
+        leg_compare->AddEntry(h_vz_closest[i], "Closest approach", "l");
+        leg_compare->AddEntry(h_vz_projected[i], "Projected track", "l");
+        leg_compare->Draw();
+
+        c_compare->SaveAs(Form("vertex_z_compare_%sdeg.png", angle_tag[i]));
+    }
+
+    TCanvas *c_phi_diff = new TCanvas("c_phi_diff", "Phi Difference", 1200, 500);
+    h_phi_diff->Draw();
+    c_phi_diff->SaveAs("phi_diff.png");
 }

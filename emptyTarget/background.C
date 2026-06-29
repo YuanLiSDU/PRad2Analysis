@@ -75,8 +75,8 @@ static void fillHists(const std::vector<TString> &fnames,
 
         if(mollerData_event.size() > 1) {
             auto getPt = [](const MollerEvent &mev) -> float {
-                float sin_t1 = sqrt(mev.first.x*mev.first.x + mev.first.y*mev.first.y) / mev.first.z;
-                float sin_t2 = sqrt(mev.second.x*mev.second.x + mev.second.y*mev.second.y) / mev.second.z;
+                float sin_t1 = sqrt(mev.first.x*mev.first.x + mev.first.y*mev.first.y) / std::sqrt(mev.first.z*mev.first.z + mev.first.x*mev.first.x + mev.first.y*mev.first.y);
+                float sin_t2 = sqrt(mev.second.x*mev.second.x + mev.second.y*mev.second.y) / std::sqrt(mev.second.z*mev.second.z + mev.second.x*mev.second.x + mev.second.y*mev.second.y);
                 return fabs(mev.first.E * sin_t1 - mev.second.E * sin_t2);
             };
             auto best = std::min_element(mollerData_event.begin(), mollerData_event.end(),
