@@ -35,10 +35,10 @@ void StyleGraph(TGraph *g, int color, int lstyle, int lwidth = 2)
 
 void linearity_check()
 {
-    const float EBeam = 728.9;  // MeV, run 24655
+    const float EBeam = 2239.5;  // MeV, run 24655
 
     // ── open files ──────────────────────────────────────────────────────────
-    TFile *fLin    = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_old.root",          "READ");
+    TFile *fLin    = TFile::Open("/home/liyuan/evviewer/x17_rate_bg/data/3cl/25766/quick_check.root",          "READ");
     TFile *fNonLin = TFile::Open("../data/recon/0.7GeV/prad_024662_quick_check_linear.root","READ");
     if (!fLin || fLin->IsZombie() || !fNonLin || fNonLin->IsZombie()) {
         std::cerr << "Cannot open input files" << std::endl; return;
@@ -91,7 +91,7 @@ void linearity_check()
         h->SetTitle(Form("%s;#theta (deg);Energy (MeV)", title));
         h->SetStats(0);
         h->GetXaxis()->SetRangeUser(0.3, 4.5);
-        h->GetYaxis()->SetRangeUser(0, 1000);
+        h->GetYaxis()->SetRangeUser(0, 3000);
         h->Draw("COLZ");
         gEP_cen->Draw("L same");
         gEP_up ->Draw("L same");
@@ -114,7 +114,7 @@ void linearity_check()
         latEE->Draw();
     };
 
-    DrawPad(c->GetPad(1), hLin,    "0.7 GeV Reconstructed Energy vs. Angle");
+    DrawPad(c->GetPad(1), hLin,    "X17 2.2 GeV Calib. Run Reconstructed Energy vs. Angle");
     DrawPad(c->GetPad(2), hNonLin, "0.7 GeV (non-linearity correction)");
 
     c->SaveAs("linearity_check.pdf");

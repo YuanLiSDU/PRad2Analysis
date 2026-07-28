@@ -46,7 +46,6 @@ const int kEntryDivisor = 5;
 const double kHyCalZ = 6270.0; // mm
 const double kEnergyBinWidth = 10.0; // MeV
 const double kEnergyMax = 4200.0; // MeV
-const double kMollerSelectionResolution = 0.035;
 std::mutex gLogMutex;
 
 const int kNAngleBins = 33;
@@ -111,8 +110,7 @@ bool projectDownstreamGem(const ReconEventData &ev, int cluster, double &x,
     return std::isfinite(x) && std::isfinite(y);
 }
 
-void processInputFile(int fileIndex, TH1F **energyHistogram,
-                      TH1F **mollerEnergyHistogram)
+void processInputFile(int fileIndex, TH1F **energyHistogram)
 {
     TFile *inputFile = TFile::Open(kInputFiles[fileIndex]);
     if (!inputFile || inputFile->IsZombie()) {
@@ -164,43 +162,6 @@ void processInputFile(int fileIndex, TH1F **energyHistogram,
             energyHistogram[angleBin]->Fill(event.cl_energy[cluster]);
         }
 
-        // Double-arm Moller selection.  Fill each electron at its own angle,
-        // so every angle bin has an independent ee energy spectrum.
-        if (event.n_clusters != 2 || event.matchNum != 2) continue;
-
-        double x[2] = {}, y[2] = {}, z[2] = {}, theta[2] = {};
-        bool validArms = true;
-        for (int arm = 0; arm < 2; ++arm) {
-            if (event.cl_nblocks[arm] < 5
-                || !hasRequiredGemMatch(event.matchFlag[arm])
-                || !projectDownstreamGem(event, arm, x[arm], y[arm], z[arm])
-                || !inHyCalAcceptance(x[arm], y[arm])) {
-                validArms = false;
-                break;
-            }
-            theta[arm] = std::atan2(std::hypot(x[arm], y[arm]), z[arm])
-                       * 180.0 / TMath::Pi();
-        }
-        if (!validArms) continue;
-
-        if (!isMoller_kinematic(theta[0], event.cl_energy[0],
-                                theta[1], event.cl_energy[1],
-                                kBeamEnergy[fileIndex],
-                                kMollerSelectionResolution)) {
-            continue;
-        }
-
-        MollerEvent moller = {
-            DataPoint(x[0], y[0], z[0], event.cl_energy[0]),
-            DataPoint(x[1], y[1], z[1], event.cl_energy[1])
-        };
-        if (std::fabs(GetMollerPhiDiff(moller)) > 10.0) continue;
-
-        for (int arm = 0; arm < 2; ++arm) {
-            const int angleBin = findAngleBin(theta[arm]);
-            if (angleBin >= 0)
-                mollerEnergyHistogram[angleBin]->Fill(event.cl_energy[arm]);
-        }
     }
 
     inputFile->Close();
@@ -298,40 +259,26 @@ void styleGraph(TGraphErrors *graph, Color_t color, Style_t marker)
 }
 
 void drawThetaSummary(const std::vector<PeakResult> ep[kNFiles],
-                      const std::vector<PeakResult> ee[kNFiles],
                       const char *outputDirectory, TFile *outputFile)
 {
     const Color_t colors[kNFiles] = {kBlue + 1, kMagenta + 1, kRed + 1};
     const Style_t markers[kNFiles] = {20, 21, 22};
     TGraphErrors *ratioEp[kNFiles] = {};
     TGraphErrors *resolutionEp[kNFiles] = {};
-    TGraphErrors *ratioEe[kNFiles] = {};
-    TGraphErrors *resolutionEe[kNFiles] = {};
 
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         ratioEp[fileIndex] = makeThetaGraph(
             ep[fileIndex], true, Form("ratio_ep_%s", kBeamLabel[fileIndex]));
         resolutionEp[fileIndex] = makeThetaGraph(
             ep[fileIndex], false, Form("resolution_ep_%s", kBeamLabel[fileIndex]));
-        ratioEe[fileIndex] = makeThetaGraph(
-            ee[fileIndex], true, Form("ratio_double_arm_ee_%s", kBeamLabel[fileIndex]));
-        resolutionEe[fileIndex] = makeThetaGraph(
-            ee[fileIndex], false,
-            Form("resolution_double_arm_ee_%s", kBeamLabel[fileIndex]));
         styleGraph(ratioEp[fileIndex], colors[fileIndex], markers[fileIndex]);
         styleGraph(resolutionEp[fileIndex], colors[fileIndex], markers[fileIndex]);
-        styleGraph(ratioEe[fileIndex], colors[fileIndex], markers[fileIndex] + 4);
-        styleGraph(resolutionEe[fileIndex], colors[fileIndex], markers[fileIndex] + 4);
     }
 
     double maxResolution = 0.0;
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex)
         for (const PeakResult &point : ep[fileIndex])
             maxResolution = std::max(maxResolution, point.resolution + point.resolutionError);
-    for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex)
-        for (const PeakResult &point : ee[fileIndex])
-            maxResolution = std::max(maxResolution,
-                                     point.resolution + point.resolutionError);
     if (maxResolution <= 0.0) maxResolution = 10.0;
 
     TCanvas *canvas = new TCanvas("c_energy_summary_vs_theta",
@@ -347,7 +294,7 @@ void drawThetaSummary(const std::vector<PeakResult> ep[kNFiles],
     unity->SetLineStyle(7);
     unity->Draw("SAME");
 
-    TLegend *legend = new TLegend(0.14, 0.55, 0.55, 0.89);
+    TLegend *legend = new TLegend(0.14, 0.68, 0.50, 0.89);
     legend->SetBorderSize(0);
     legend->SetFillStyle(0);
     legend->SetTextSize(0.033);
@@ -356,10 +303,6 @@ void drawThetaSummary(const std::vector<PeakResult> ep[kNFiles],
         legend->AddEntry(ratioEp[fileIndex],
                          Form("ep, E_{beam} = %.3g GeV", kBeamEnergy[fileIndex] / 1000.0),
                          "p");
-        ratioEe[fileIndex]->Draw("P SAME");
-        legend->AddEntry(ratioEe[fileIndex],
-                         Form("double-arm ee, E_{beam} = %.3g GeV",
-                              kBeamEnergy[fileIndex] / 1000.0), "p");
     }
     legend->Draw();
 
@@ -373,7 +316,6 @@ void drawThetaSummary(const std::vector<PeakResult> ep[kNFiles],
     resolutionFrame->SetTitle(";Scattering angle #theta (deg);Energy resolution #sigma/E_{recon mean} (%)");
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         resolutionEp[fileIndex]->Draw("P SAME");
-        resolutionEe[fileIndex]->Draw("P SAME");
     }
 
     canvas->SaveAs(Form("%s/summary_vs_theta.png", outputDirectory));
@@ -382,20 +324,15 @@ void drawThetaSummary(const std::vector<PeakResult> ep[kNFiles],
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         ratioEp[fileIndex]->Write();
         resolutionEp[fileIndex]->Write();
-        ratioEe[fileIndex]->Write();
-        resolutionEe[fileIndex]->Write();
     }
 }
 
 void drawResolutionVsEnergy(const std::vector<PeakResult> ep[kNFiles],
-                            const std::vector<PeakResult> ee[kNFiles],
                             const char *outputDirectory, TFile *outputFile)
 {
     for (int angleBin = 0; angleBin < kNAngleBins; ++angleBin) {
         TGraphErrors *epGraph = new TGraphErrors();
         epGraph->SetName(Form("resolution_vs_energy_ep_bin%02d", angleBin));
-        TGraphErrors *eeGraph = new TGraphErrors();
-        eeGraph->SetName(Form("resolution_vs_energy_ee_bin%02d", angleBin));
 
         double minEnergy = std::numeric_limits<double>::max();
         double maxEnergy = 0.0;
@@ -413,49 +350,31 @@ void drawResolutionVsEnergy(const std::vector<PeakResult> ep[kNFiles],
                                          point.resolution + point.resolutionError);
             }
         }
-        for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex)
-            for (const PeakResult &point : ee[fileIndex]) {
-                if (point.angleBin != angleBin) continue;
-                const double energyGeV = point.expectedEnergy / 1000.0;
-                eeGraph->SetPoint(eeGraph->GetN(), energyGeV, point.resolution);
-                eeGraph->SetPointError(eeGraph->GetN() - 1, 0.0,
-                                       point.resolutionError);
-                minEnergy = std::min(minEnergy, energyGeV);
-                maxEnergy = std::max(maxEnergy, energyGeV);
-                maxResolution = std::max(maxResolution,
-                                         point.resolution + point.resolutionError);
-            }
-        if (epGraph->GetN() + eeGraph->GetN() == 0) continue;
+        if (epGraph->GetN() == 0) continue;
 
         styleGraph(epGraph, kBlue + 1, 20);
-        styleGraph(eeGraph, kGreen + 2, 24);
         epGraph->Sort();
-        eeGraph->Sort();
 
-        // Use the same energy-dependence fit as position_sigma.C.
+        // Single stochastic term: R(E) = k / sqrt(E[GeV]).
         TGraphErrors *combinedGraph = new TGraphErrors();
         combinedGraph->SetName(Form("resolution_vs_energy_combined_bin%02d", angleBin));
-        TGraphErrors *sourceGraphs[2] = {epGraph, eeGraph};
-        for (TGraphErrors *source : sourceGraphs) {
-            for (int pointIndex = 0; pointIndex < source->GetN(); ++pointIndex) {
-                double x = 0.0, y = 0.0;
-                source->GetPoint(pointIndex, x, y);
-                combinedGraph->SetPoint(combinedGraph->GetN(), x, y);
-                combinedGraph->SetPointError(combinedGraph->GetN() - 1,
-                                             source->GetErrorX(pointIndex),
-                                             source->GetErrorY(pointIndex));
-            }
+        for (int pointIndex = 0; pointIndex < epGraph->GetN(); ++pointIndex) {
+            double x = 0.0, y = 0.0;
+            epGraph->GetPoint(pointIndex, x, y);
+            combinedGraph->SetPoint(combinedGraph->GetN(), x, y);
+            combinedGraph->SetPointError(combinedGraph->GetN() - 1,
+                                         epGraph->GetErrorX(pointIndex),
+                                         epGraph->GetErrorY(pointIndex));
         }
         combinedGraph->Sort();
 
         TF1 *energyFit = nullptr;
         if (combinedGraph->GetN() >= 2) {
             energyFit = new TF1(Form("resolution_energy_fit_bin%02d", angleBin),
-                                "[0]/sqrt(x) + [1]/x + [2]", 0.1, 10.0);
-            energyFit->SetParNames("k1", "k2", "k3");
-            energyFit->SetParameters(combinedGraph->GetY()[0]
-                                     * std::sqrt(combinedGraph->GetX()[0]),
-                                     0.0, 0.0);
+                                "[0]/sqrt(x)", 0.1, 10.0);
+            energyFit->SetParName(0, "k");
+            energyFit->SetParameter(0, combinedGraph->GetY()[0]
+                                    * std::sqrt(combinedGraph->GetX()[0]));
             energyFit->SetLineColor(kRed + 1);
             energyFit->SetLineWidth(2);
             combinedGraph->Fit(energyFit, "Q");
@@ -478,15 +397,12 @@ void drawResolutionVsEnergy(const std::vector<PeakResult> ep[kNFiles],
         frame->SetTitle(Form("#theta #in [%.3f, %.3f] deg;E_{expect} (GeV);Energy resolution #sigma/E_{recon mean} (%%)",
                              kAngleEdge[angleBin], kAngleEdge[angleBin + 1]));
         epGraph->Draw("P SAME");
-        eeGraph->Draw("P SAME");
         if (energyFit) energyFit->Draw("SAME");
 
         TLegend *legend = new TLegend(0.62, 0.73, 0.89, 0.89);
         legend->SetBorderSize(0);
         legend->SetFillStyle(0);
         if (epGraph->GetN() > 0) legend->AddEntry(epGraph, "ep", "p");
-        if (eeGraph->GetN() > 0)
-            legend->AddEntry(eeGraph, "double-arm ee", "p");
         if (energyFit) legend->AddEntry(energyFit, "Combined fit", "l");
         legend->Draw();
 
@@ -496,19 +412,11 @@ void drawResolutionVsEnergy(const std::vector<PeakResult> ep[kNFiles],
             fitLabel->SetTextSize(0.030);
             fitLabel->DrawLatex(
                 0.15, 0.87,
-                "R(E) = k_{1}/#sqrt{E [GeV]} + k_{2}/E [GeV] + k_{3}");
+                "R(E) = k/#sqrt{E [GeV]}");
             fitLabel->DrawLatex(
                 0.15, 0.82,
-                Form("k_{1} = %.4f #pm %.4f %% #sqrt{GeV}",
+                Form("k = %.4f #pm %.4f %% #sqrt{GeV}",
                      energyFit->GetParameter(0), energyFit->GetParError(0)));
-            fitLabel->DrawLatex(
-                0.15, 0.77,
-                Form("k_{2} = %.4f #pm %.4f %% GeV",
-                     energyFit->GetParameter(1), energyFit->GetParError(1)));
-            fitLabel->DrawLatex(
-                0.15, 0.72,
-                Form("k_{3} = %.4f #pm %.4f %%",
-                     energyFit->GetParameter(2), energyFit->GetParError(2)));
         }
 
         canvas->SaveAs(Form("%s/resolution_vs_energy_bin%02d_%.3f_%.3fdeg.png",
@@ -517,7 +425,6 @@ void drawResolutionVsEnergy(const std::vector<PeakResult> ep[kNFiles],
         outputFile->cd();
         canvas->Write();
         epGraph->Write();
-        eeGraph->Write();
         combinedGraph->Write();
         if (energyFit) energyFit->Write();
     }
@@ -537,7 +444,6 @@ void energy_resolution_vs_energy()
     gSystem->mkdir(outputDirectory, true);
 
     TH1F *energyHistogram[kNFiles][kNAngleBins] = {};
-    TH1F *mollerEnergyHistogram[kNFiles][kNAngleBins] = {};
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         for (int angleBin = 0; angleBin < kNAngleBins; ++angleBin) {
             energyHistogram[fileIndex][angleBin] = new TH1F(
@@ -547,14 +453,6 @@ void energy_resolution_vs_energy()
                      kAngleEdge[angleBin + 1], kEnergyBinWidth),
                 static_cast<int>(kEnergyMax / kEnergyBinWidth), 0.0, kEnergyMax);
             energyHistogram[fileIndex][angleBin]->SetDirectory(nullptr);
-
-            mollerEnergyHistogram[fileIndex][angleBin] = new TH1F(
-                Form("moller_energy_%s_bin%02d", kBeamLabel[fileIndex], angleBin),
-                Form("Double-arm Moller, E_{beam}=%.1f MeV, #theta #in [%.3f, %.3f] deg;Reconstructed energy (MeV);Counts / %.0f MeV",
-                     kBeamEnergy[fileIndex], kAngleEdge[angleBin],
-                     kAngleEdge[angleBin + 1], kEnergyBinWidth),
-                static_cast<int>(kEnergyMax / kEnergyBinWidth), 0.0, kEnergyMax);
-            mollerEnergyHistogram[fileIndex][angleBin]->SetDirectory(nullptr);
         }
     }
 
@@ -563,8 +461,7 @@ void energy_resolution_vs_energy()
     std::thread workers[kNFiles];
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         workers[fileIndex] = std::thread(processInputFile, fileIndex,
-                                         energyHistogram[fileIndex],
-                                         mollerEnergyHistogram[fileIndex]);
+                                         energyHistogram[fileIndex]);
     }
     for (std::thread &worker : workers) worker.join();
 
@@ -579,7 +476,6 @@ void energy_resolution_vs_energy()
     }
 
     std::vector<PeakResult> epResult[kNFiles];
-    std::vector<PeakResult> eeResult[kNFiles];
     for (int fileIndex = 0; fileIndex < kNFiles; ++fileIndex) {
         for (int angleBin = 0; angleBin < kNAngleBins; ++angleBin) {
             const double theta = 0.5 * (kAngleEdge[angleBin] + kAngleEdge[angleBin + 1]);
@@ -590,26 +486,15 @@ void energy_resolution_vs_energy()
             if (fitPeak(hist, epExpected, fileIndex, angleBin, "ep", ep))
                 epResult[fileIndex].push_back(ep);
 
-            PeakResult ee;
-            const double eeExpected = ExpectedEnergy(theta, kBeamEnergy[fileIndex], "ee");
-            if (fitPeak(mollerEnergyHistogram[fileIndex][angleBin], eeExpected,
-                        fileIndex, angleBin, "ee", ee)) {
-                eeResult[fileIndex].push_back(ee);
-            }
-
             outputFile->cd();
             hist->Write();
-            mollerEnergyHistogram[fileIndex][angleBin]->Write();
         }
         std::cout << "Valid ep fits at " << kBeamEnergy[fileIndex] / 1000.0
                   << " GeV: " << epResult[fileIndex].size() << std::endl;
-        std::cout << "Valid double-arm ee fits at "
-                  << kBeamEnergy[fileIndex] / 1000.0 << " GeV: "
-                  << eeResult[fileIndex].size() << std::endl;
     }
 
-    drawThetaSummary(epResult, eeResult, outputDirectory, outputFile);
-    drawResolutionVsEnergy(epResult, eeResult, outputDirectory, outputFile);
+    drawThetaSummary(epResult, outputDirectory, outputFile);
+    drawResolutionVsEnergy(epResult, outputDirectory, outputFile);
 
     outputFile->Close();
     std::cout << "Saved plots and ROOT objects in " << outputDirectory << "/" << std::endl;

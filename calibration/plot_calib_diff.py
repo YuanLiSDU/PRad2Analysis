@@ -14,15 +14,22 @@ from matplotlib.cm import ScalarMappable
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # ── Parameters ──────────────────────────────────────────────────────────────
-file_ref   = 'calibration_factor_3p5_June7.json'
-file_fadc  = 'calibration_factor_2p2_fadc.json'
+file_ref   = 'x17_25655_fadc.json'
+file_fadc  = 'x17_25825_fadc.json'
 geo_file   = '../hycal_modules.json'
 output     = 'hycal_calib_diff.png'
-cmap_name  = 'RdBu_r'          # red = fadc > ref, blue = fadc < ref
-vmin       = -30.0              # color scale lower limit (%); None = auto
-vmax       =  30.0              # color scale upper limit (%); None = auto
-title      = 'Calibration Factor Relative Difference: (FADC − Physics) / Physics  [%]'
+vmin       = -15.0              # color scale lower limit (%); None = auto
+vmax       =  40.0              # color scale upper limit (%); None = auto
+title      = 'FADC Calibration Factor Difference: (New − Old) / Uploaded  [%]'
 ann_fontsize = 7.5
+
+HYCal_RAINBOW_STOPS = [
+    (0.00, (30 / 255,  58 / 255,  95 / 255)),
+    (0.25, (59 / 255, 130 / 255, 246 / 255)),
+    (0.50, (45 / 255, 212 / 255, 160 / 255)),
+    (0.75, (234 / 255, 179 / 255,   8 / 255)),
+    (1.00, (245 / 255, 101 / 255, 101 / 255)),
+]
 # ────────────────────────────────────────────────────────────────────────────
 
 # ── 1. Load calibration factors ──────────────────────────────────────────────
@@ -62,9 +69,9 @@ print(f"Mean: {np.mean(valid_vals):.3f}%   Std: {np.std(valid_vals):.3f}%")
 # ── 4. Color normalization ────────────────────────────────────────────────────
 _vmin = vmin if vmin is not None else min(valid_vals)
 _vmax = vmax if vmax is not None else max(valid_vals)
-norm = mcolors.Normalize(vmin=_vmin, vmax=_vmax)
+norm = mcolors.Normalize(vmin=_vmin, vmax=_vmax, clip=True)
 
-cmap = plt.get_cmap(cmap_name)
+cmap = mcolors.LinearSegmentedColormap.from_list("hycal_rainbow", HYCal_RAINBOW_STOPS)
 sm = ScalarMappable(cmap=cmap, norm=norm)
 sm.set_array(valid_vals)
 
@@ -126,11 +133,11 @@ all_vals_hist = ref_vals_hist + fadc_vals_hist
 bins = np.linspace(min(all_vals_hist), max(all_vals_hist), 60)
 
 fig2, ax2 = plt.subplots(figsize=(9, 6), dpi=160)
-ax2.hist(ref_vals_hist,  bins=bins, alpha=0.6, label='Physics', color='steelblue')
-ax2.hist(fadc_vals_hist, bins=bins, alpha=0.6, label='FADC',    color='tomato')
-ax2.axvline(0.122, color='black', linestyle='--', linewidth=1.8, label='Original factor (0.122)')
+ax2.hist(ref_vals_hist,  bins=bins, alpha=0.6, label='Uploaded', color='steelblue')
+ax2.hist(fadc_vals_hist, bins=bins, alpha=0.6, label='Current',    color='tomato')
 ax2.set_xlabel('Calibration Factor', fontsize=14)
 ax2.set_ylabel('Counts', fontsize=14)
+ax2.set_xlim(0.1, 0.2)
 ax2.set_title('Calibration Factor Distribution', fontsize=15)
 ax2.legend(fontsize=13)
 ax2.tick_params(labelsize=12)
@@ -157,8 +164,8 @@ print(f"Mean: {np.mean(valid_fo):.3f}%   Std: {np.std(valid_fo):.3f}%")
 
 _vmin3 = -30.0
 _vmax3 =  30.0
-norm3 = mcolors.Normalize(vmin=_vmin3, vmax=_vmax3)
-sm3 = ScalarMappable(cmap=plt.get_cmap(cmap_name), norm=norm3)
+norm3 = mcolors.Normalize(vmin=_vmin3, vmax=_vmax3, clip=True)
+sm3 = ScalarMappable(cmap=cmap, norm=norm3)
 sm3.set_array(valid_fo)
 
 fig3, ax3 = plt.subplots(figsize=(16, 14), dpi=160,
