@@ -278,13 +278,14 @@ inline SimpleLogNormalFitResult findTimeLogNormalCFDNs(const float samples[100],
 	if (peak_pos < 0 || peak_pos >= 100) return fail("peak_pos out of range");
 	if (!(cfd_fraction > 0.0f) || !(cfd_fraction < 1.0f)) return fail("invalid cfd_fraction");
 
-	const int fit_start = std::max(0, left_bound - 5);
-	const int fit_stop  = std::min(99, peak_pos + 4);
-	const int nfit = fit_stop - fit_start + 1;
-	if (nfit < 8) return fail("fit window too short (nfit < 8)");
-
 	const float raw_height = samples[peak_pos] - ped_mean;
 	if (!(raw_height > 0.0f)) return fail("non-positive raw height");
+
+	int fit_start = std::max(0, left_bound - 4);
+	//if (samples[fit_start] - ped_mean < 0.2 * raw_height) fit_start++;
+	const int fit_stop  = std::min(99, peak_pos + 4);
+	const int nfit = fit_stop - fit_start + 1;
+	//if (nfit < 8) return fail("fit window too short (nfit < 8)");
 
 	const float v_thr = cfd_fraction * raw_height;
 	int cfd_left_sample = -1;

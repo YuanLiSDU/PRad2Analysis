@@ -84,9 +84,14 @@ struct ReconEventData {
     uint32_t cl_flag[kMaxClusters]    = {};
     // Matching results
     uint32_t matchFlag[kMaxClusters] = {};
-    float    matchGEMx[kMaxClusters][4] = {};
-    float    matchGEMy[kMaxClusters][4] = {};
-    float    matchGEMz[kMaxClusters][4] = {};
+    // Flattened GEM matches across all clusters/chambers (ROOT-native vectors,
+    // no custom dictionary required). Entry k in these parallel vectors is one
+    // matched GEM hit with owning cluster and detector plane.
+    std::vector<uint16_t> match_cl_idx;
+    std::vector<uint8_t>  match_det_id;
+    std::vector<float>    match_gem_x;
+    std::vector<float>    match_gem_y;
+    std::vector<float>    match_gem_z;
     int      matchNum = 0; // number of clusters with matches (for quick access, can be derived from matchFlag)
     //for quick simple access to each matched hit on HC and GEM planes
     // HC_Energy, HC_x/y/z, GEM_x/y/z (in mm, beam center and target center coordinate)
@@ -97,7 +102,8 @@ struct ReconEventData {
     float    mHit_gx[kMaxClusters][2] = {};
     float    mHit_gy[kMaxClusters][2] = {};
     float    mHit_gz[kMaxClusters][2] = {};
-    float    mHit_gid[kMaxClusters][2] = {}; //det_id for matched GEM hits
+    uint8_t    mHit_gid[kMaxClusters][2] = {}; //det_id for matched GEM hits
+    uint8_t    mHit_cl_index[kMaxClusters] = {}; // index of the matched HyCal cluster
 
     // GEM reconstructed hits
     int        n_gem_hits = 0;
@@ -150,9 +156,11 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("cl_flag",      ev.cl_flag);
     // Matching results
     tree->SetBranchAddress("matchFlag",    ev.matchFlag);
-    tree->SetBranchAddress("matchGEMx",    ev.matchGEMx);
-    tree->SetBranchAddress("matchGEMy",    ev.matchGEMy);
-    tree->SetBranchAddress("matchGEMz",    ev.matchGEMz);
+    tree->SetBranchAddress("match_cl_idx", ev.match_cl_idx);
+    tree->SetBranchAddress("match_det_id", ev.match_det_id);
+    tree->SetBranchAddress("match_gem_x", ev.match_gem_x);
+    tree->SetBranchAddress("match_gem_y", ev.match_gem_y);
+    tree->SetBranchAddress("match_gem_z", ev.match_gem_z);
     tree->SetBranchAddress("match_num",     &ev.matchNum);
     // Quick and simple matching results for fast checks
     tree->SetBranchAddress("mHit_E", ev.mHit_E);
@@ -163,6 +171,7 @@ void setupReconBranches(TTree *tree, ReconEventData &ev){
     tree->SetBranchAddress("mHit_gy", ev.mHit_gy);
     tree->SetBranchAddress("mHit_gz", ev.mHit_gz);
     tree->SetBranchAddress("mHit_gid", ev.mHit_gid);
+    tree->SetBranchAddress("mHit_cl_index", ev.mHit_cl_index);
     // GEM branches
     tree->SetBranchAddress("n_gem_hits",   &ev.n_gem_hits);
     tree->SetBranchAddress("det_id",       ev.det_id);

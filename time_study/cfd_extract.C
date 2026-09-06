@@ -29,7 +29,7 @@ static bool processWaveformDemoAndPlot(const float waveform[100],
                                        Long64_t entry,
                                        int ch);
 
-void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 10) {
+void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 20) {
 
     std::string file_path = "../data/time_study/";
     std::vector<std::string> root_files = collectRootFiles(file_path);
@@ -44,40 +44,60 @@ void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 10) {
 
     int plotted = 0;
     const std::string out_pdf = std::string(pdf_output);
+    std::string pair_pdf = out_pdf;
+    const std::string pdf_suffix = ".pdf";
+    if (pair_pdf.size() >= pdf_suffix.size() &&
+        pair_pdf.substr(pair_pdf.size() - pdf_suffix.size()) == pdf_suffix) {
+        pair_pdf = pair_pdf.substr(0, pair_pdf.size() - pdf_suffix.size()) + "_pair.pdf";
+    } else {
+        pair_pdf += "_pair.pdf";
+    }
+
     TCanvas pdf_bookend("pdf_bookend", "pdf_bookend", 1100, 700);
     pdf_bookend.SetCanvasSize(1100, 700);
     pdf_bookend.Print((out_pdf + "[").c_str());
 
-    TH1F *time_diff_0p5 = new TH1F("time_diff_0p5", "Time Diff 0.5", 800, -10, 10);
-    TH1F *time_diff_0p4 = new TH1F("time_diff_0p4", "Time Diff 0.4", 800, -10, 10);
-    TH1F *time_diff_0p3 = new TH1F("time_diff_0p3", "Time Diff 0.3", 800, -10, 10);
-    TH1F *time_diff_0p2 = new TH1F("time_diff_0p2", "Time Diff 0.2", 800, -10, 10);
+    TCanvas pair_pdf_bookend("pair_pdf_bookend", "pair_pdf_bookend", 1100, 700);
+    pair_pdf_bookend.SetCanvasSize(1100, 700);
+    pair_pdf_bookend.Print((pair_pdf + "[").c_str());
+
+    TH1F *time_diff_0p5 = new TH1F("time_diff_0p5", "Time Diff 0.5", 400, -10, 10);
+    TH1F *time_diff_0p4 = new TH1F("time_diff_0p4", "Time Diff 0.4", 400, -10, 10);
+    TH1F *time_diff_0p3 = new TH1F("time_diff_0p3", "Time Diff 0.3", 400, -10, 10);
+    TH1F *time_diff_0p2 = new TH1F("time_diff_0p2", "Time Diff 0.2", 400, -10, 10);
 
     TH1F *time_diff_0p2_linear = new TH1F("time_diff_0p2_linear", "Time Diff 0.2 Linear", 800, -10, 10);
 
-
     int module[2] = {1492-34, 1493-34};
-    //int module[2] = {3003, 3002}; //veto
+    //int module[2] = {3003, 3004}; //veto
 
     Long64_t nentries = chain.GetEntries();
-    for (Long64_t i = 0; i < nentries/2; ++i) {
+    for (Long64_t i = 0; i < nentries/10; ++i) {
         chain.GetEntry(i);
         // Process the event data here
 
-        if (i % 1000 == 0) std::cout << "Processing entry " << i << "/" << nentries << std::endl;
+        if (i % 10000 == 0) std::cout << "Processing entry " << i << "/" << nentries << "\r" << std::flush;
 
         bool is_sum = ((ev.trigger_bits & 1u << 8) != 0 && ev.nch < 100);
         bool is_lms = ((ev.trigger_bits & 1u << 24) != 0) && ev.nch > 900;
 
         float cfd_time[2][4] = {}, peak_h[2] = {}, cfd_time_linear[2] = {};
-
+        float module_waveform[2][100] = {};
+        float module_ped_mean[2] = {0.f, 0.f};
+        float module_ped_rms[2] = {0.f, 0.f};
+        int module_ch[2] = {-1, -1};
+        bool has_waveform[2] = {false, false};
+        const float break_ratio = 0.1f;
+        const int smooth_order = 1;
+        const float clk_mhz = 250.0f;
+        float bump_sample_ratio_val = 0.f;
         for (int j = 0; j < ev.nch; j++){
             if (ev.npeaks[j] != 1) continue;
 
             bool is_pwo = (ev.module_id[j] > 1000 && ev.module_id[j] <= 2156);
             bool is_veto = (ev.module_id[j] >=3001 && ev.module_id[j] <= 3004);
 
-            if (!is_pwo) continue;
+            if (!is_veto) continue;
             if (!is_sum) continue;
             //if (ev.peak_height[j][0] <= 300.f) continue;
 
@@ -90,21 +110,17 @@ void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 10) {
 
             const float ped_mean = ev.ped_mean[j];
             const float ped_rms = ev.ped_rms[j];
-            const float break_ratio = 0.1f;
-            const int smooth_order = 1;
-            const float clk_mhz = 250.0f;
-
             const SimplePeakWindowResult win = findSinglePeakWindowByRatio(
                 waveform, ped_mean, ped_rms, break_ratio, smooth_order);
             if (!win.ok) continue;
 
             SimpleLogNormalFitResult t_logn[4];
-            t_logn[0] = findTimeLogNormalCFDNs(
-                waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.5f);
-            t_logn[1] = findTimeLogNormalCFDNs(
-                waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.4f);
-            t_logn[2] = findTimeLogNormalCFDNs(
-                waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.3f);
+            //t_logn[0] = findTimeLogNormalCFDNs(
+            //    waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.95f);
+            //t_logn[1] = findTimeLogNormalCFDNs(
+            //    waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.9f);
+            //t_logn[2] = findTimeLogNormalCFDNs(
+            //    waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.5f);
             t_logn[3] = findTimeLogNormalCFDNs(
                 waveform, ped_mean, ped_rms, win.left, win.peak_pos, clk_mhz, 0.2f);
             const SimpleTimeResult t_lin = findTimeLinearCFDNs(
@@ -116,65 +132,83 @@ void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 10) {
                 }
                 if (t_lin.ok) cfd_time_linear[0] = t_lin.time_ns;
                 peak_h[0] = ev.peak_height[j][0];
+                std::copy(waveform, waveform + 100, module_waveform[0]);
+                module_ped_mean[0] = ped_mean;
+                module_ped_rms[0] = ped_rms;
+                module_ch[0] = j;
+                has_waveform[0] = true;
             }
-            if (ev.module_id[j] == module[1] && ev.peak_height[j][0] > 200.f) {
+            if (ev.module_id[j] == module[1] && ev.peak_height[j][0] > 4000.f) {
                 for(int t = 0; t < 4; t++){
                     if (t_logn[t].ok) cfd_time[1][t] = t_logn[t].time_ns;
                 }
                 if (t_lin.ok) cfd_time_linear[1] = t_lin.time_ns;
                 peak_h[1] = ev.peak_height[j][0];
-            }
-
-            if (peak_h[0] * peak_h[1] > 0.f && cfd_time[0][3] - cfd_time[1][3] < 3.f) {
-                if(plotted <= max_plots && ev.module_id[j] == module[0]){
-                    const std::string trigger_sel = is_lms ? "LMS" : (is_sum ? "SUM" : "other");
-                    const bool made_plot = processWaveformDemoAndPlot(waveform, ped_mean, ped_rms, clk_mhz,
-                        break_ratio, smooth_order, ev.module_id[j], trigger_sel, out_pdf, i, j);
-                    if (made_plot) {
-                        ++plotted;
-                    }
-                }
+                std::copy(waveform, waveform + 100, module_waveform[1]);
+                module_ped_mean[1] = ped_mean;
+                module_ped_rms[1] = ped_rms;
+                module_ch[1] = j;
+                has_waveform[1] = true;
             }
         }
+
+        const bool pass_event = (peak_h[0] * peak_h[1] > 0.f && (peak_h[0] > 4000.f || peak_h[1] > 4000.f));
+                                 //cfd_time[0][3] - cfd_time[1][3] < 3.0f);
+        if (pass_event && plotted < max_plots && has_waveform[0] && has_waveform[1]) {
+            const std::string trigger_sel = is_lms ? "LMS" : (is_sum ? "SUM" : "other");
+            bool made_any = false;
+            made_any |= processWaveformDemoAndPlot(module_waveform[0], module_ped_mean[0], module_ped_rms[0], clk_mhz,
+                break_ratio, smooth_order, module[0], trigger_sel, pair_pdf, i, module_ch[0]);
+            made_any |= processWaveformDemoAndPlot(module_waveform[1], module_ped_mean[1], module_ped_rms[1], clk_mhz,
+                break_ratio, smooth_order, module[1], trigger_sel, pair_pdf, i, module_ch[1]);
+            if (made_any) {
+                ++plotted;
+            }
+        }
+
         if (peak_h[0] * peak_h[1] > 0.f){
             time_diff_0p5 -> Fill(cfd_time[0][0] - cfd_time[1][0]);
             time_diff_0p4 -> Fill(cfd_time[0][1] - cfd_time[1][1]);
             time_diff_0p3 -> Fill(cfd_time[0][2] - cfd_time[1][2]);
-            time_diff_0p2 -> Fill(cfd_time[0][3] - cfd_time[1][3]);
+            time_diff_0p2 -> Fill(cfd_time[0][3] - cfd_time[1][3]); // -3.78
             time_diff_0p2_linear -> Fill(cfd_time_linear[0] - cfd_time_linear[1]);
         }
     }
 
     pdf_bookend.Print((out_pdf + "]").c_str());
+    pair_pdf_bookend.Print((pair_pdf + "]").c_str());
     std::cout << "[time-demo] total plotted pages: " << plotted
-              << " -> " << out_pdf << std::endl;
+              << " event pairs -> " << pair_pdf << std::endl;
 
-    TCanvas *c1 = new TCanvas("scan_ratio", "scan_ratio", 800, 600);
+    /*TCanvas *c1 = new TCanvas("scan_ratio", "scan_ratio", 800, 600);
     c1->cd();
     time_diff_0p5->SetTitle(Form("Time Differences of Mod %d/%d (Diff CFD Ratios)", module[0], module[1]));
+    time_diff_0p5->GetXaxis()->SetTitle("Time Difference #Delta t [ns]");
+    time_diff_0p5->GetYaxis()->SetTitle("Counts");
     time_diff_0p5->SetStats(0);
     time_diff_0p5->GetYaxis()->SetRangeUser(0, time_diff_0p2->GetMaximum()*1.2);
     time_diff_0p5->SetLineColor(kRed);
-    time_diff_0p5->SetLineWidth(1);
+    time_diff_0p5->SetLineWidth(2);
     time_diff_0p5->Draw();
     time_diff_0p4->SetLineColor(kBlue);
-    time_diff_0p4->SetLineWidth(1);
+    time_diff_0p4->SetLineWidth(2);
     time_diff_0p4->Draw("SAME");
-    time_diff_0p3->SetLineColor(kGreen);
-    time_diff_0p3->SetLineWidth(1);
+    time_diff_0p3->SetLineColor(kOrange+1);
+    time_diff_0p3->SetLineWidth(2);
     time_diff_0p3->Draw("SAME");
     time_diff_0p2->SetLineColor(kMagenta);
-    time_diff_0p2->SetLineWidth(1);
+    time_diff_0p2->SetLineWidth(2);
     time_diff_0p2->Draw("SAME");
 
     TLegend *legend = new TLegend(0.7,0.7,0.9,0.9);
-    legend->AddEntry(time_diff_0p5, "0.5", "l");
-    legend->AddEntry(time_diff_0p4, "0.4", "l");
-    legend->AddEntry(time_diff_0p3, "0.3", "l");
+    legend->AddEntry(time_diff_0p5, "0.95", "l");
+    legend->AddEntry(time_diff_0p4, "0.9", "l");
+    legend->AddEntry(time_diff_0p3, "0.5", "l");
     legend->AddEntry(time_diff_0p2, "0.2", "l");
     legend->Draw();
+    */
 
-    TCanvas *c2 = new TCanvas("linear_vs_fitting", "linear_vs_fitting", 800, 600);
+    /*TCanvas *c2 = new TCanvas("linear_vs_fitting", "linear_vs_fitting", 800, 600);
     c2->cd();
     time_diff_0p2_linear->SetTitle(Form("Time Differences of Mod %d/%d (Linear CFD vs Fitting)", module[0], module[1]));
     time_diff_0p2_linear->SetStats(0);
@@ -188,7 +222,35 @@ void cfd_extract(const char *pdf_output = "time_demo.pdf", int max_plots = 10) {
     TLegend *legend2 = new TLegend(0.7,0.7,0.9,0.9);
     legend2->AddEntry(time_diff_0p2_linear, "0.2 Linear", "l");
     legend2->AddEntry(time_diff_0p2, "0.2 Fitting", "l");
-    legend2->Draw();
+    legend2->Draw();*/
+
+    /*
+    for(int i = 0; i < time_diff_0p2->GetNbinsX(); ++i) {
+        if(time_diff_0p2->GetBinCenter(i) < -0.6 || time_diff_0p2->GetBinCenter(i) > 0.6)
+            time_diff_0p2->SetBinContent(i, 0);
+    }
+*/
+    TCanvas *c3 = new TCanvas("time_resolution", "time_resolution", 800, 600);
+    time_diff_0p2->SetTitle(Form("Pulse Time Difference of 2 HyCal modules (%d/%d)", module[0], module[1]));
+    time_diff_0p2->SetStats(0);
+    time_diff_0p2->GetYaxis()->SetRangeUser(0, time_diff_0p2->GetMaximum()*1.1);
+    time_diff_0p2->GetXaxis()->SetRangeUser(-6.0, 6.0);
+    time_diff_0p2->SetLineColor(kBlue);
+    time_diff_0p2->SetLineWidth(2);
+    time_diff_0p2->GetXaxis()->SetTitle("Time Difference #Delta t [ns]");
+    time_diff_0p2->GetYaxis()->SetTitle("Counts");
+    time_diff_0p2->Draw();
+    float max = time_diff_0p2->GetBinCenter(time_diff_0p2->GetMaximumBin());
+    time_diff_0p2->Fit("gaus","R", "", max-0.5, max+0.5);
+    TF1 *fit = time_diff_0p2->GetFunction("gaus");
+    fit->SetLineStyle(2);
+    fit->Draw("SAMEL");
+
+    TLatex *latex = new TLatex();
+    latex->SetNDC();
+    latex->SetTextSize(0.035);
+    latex->DrawLatex(0.65, 0.7, Form("Resolution = #sigma/#sqrt{2} = %.2f ns", fit->GetParameter(2) / std::sqrt(2)));
+    latex->Draw("SAME");
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -326,14 +388,18 @@ static bool processWaveformDemoAndPlot(const float waveform[100],
                      "l");
     }
     if (t_logn.ok) {
-        std::vector<double> fit_x(fit_n);
-        std::vector<double> fit_y(fit_n);
-        for (int i = 0; i < fit_n; ++i) {
-            const int sample_idx = fit_start + i;
-            fit_x[i] = x[sample_idx];
-            fit_y[i] = evalLogNormalFitAtSample(static_cast<float>(sample_idx), ped_mean, t_logn);
+        const int fit_curve_points = std::max(2, (fit_n - 1) * 32 + 1);
+        const float fit_sample_span = static_cast<float>(fit_stop - fit_start);
+        std::vector<double> fit_x(fit_curve_points);
+        std::vector<double> fit_y(fit_curve_points);
+        for (int i = 0; i < fit_curve_points; ++i) {
+            const float curve_fraction =
+                (fit_curve_points == 1) ? 0.f : static_cast<float>(i) / static_cast<float>(fit_curve_points - 1);
+            const float sample_pos = static_cast<float>(fit_start) + curve_fraction * fit_sample_span;
+            fit_x[i] = sampleToNs(sample_pos, clk_mhz);
+            fit_y[i] = evalLogNormalFitAtSample(sample_pos, ped_mean, t_logn);
         }
-        auto *fit_graph = new TGraph(fit_n, fit_x.data(), fit_y.data());
+        auto *fit_graph = new TGraph(fit_curve_points, fit_x.data(), fit_y.data());
         fit_graph->SetLineColor(kGreen + 2);
         fit_graph->SetLineWidth(3);
         fit_graph->SetLineStyle(7);

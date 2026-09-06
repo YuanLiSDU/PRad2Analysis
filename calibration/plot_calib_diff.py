@@ -14,13 +14,13 @@ from matplotlib.cm import ScalarMappable
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # ── Parameters ──────────────────────────────────────────────────────────────
-file_ref   = 'x17_25655_fadc.json'
-file_fadc  = 'x17_25825_fadc.json'
+file_ref   = 'x17_25825_fadc.json'
+file_fadc  = 'x17_26094_fadc.json'
 geo_file   = '../hycal_modules.json'
 output     = 'hycal_calib_diff.png'
-vmin       = -15.0              # color scale lower limit (%); None = auto
-vmax       =  40.0              # color scale upper limit (%); None = auto
-title      = 'FADC Calibration Factor Difference: (New − Old) / Uploaded  [%]'
+vmin       = -5.0              # color scale lower limit (%); None = auto
+vmax       =  25.0              # color scale upper limit (%); None = auto
+title      = 'FADC Calibration Factor Difference: (New − Old) / Old  [%]'
 ann_fontsize = 7.5
 
 HYCal_RAINBOW_STOPS = [
@@ -162,8 +162,8 @@ valid_fo = [v for v in diffs_fadc_orig.values() if v is not None]
 print(f"\nFADC vs Original diff range: {min(valid_fo):.3f}% to {max(valid_fo):.3f}%")
 print(f"Mean: {np.mean(valid_fo):.3f}%   Std: {np.std(valid_fo):.3f}%")
 
-_vmin3 = -30.0
-_vmax3 =  30.0
+_vmin3 = -20.0
+_vmax3 =  150.0
 norm3 = mcolors.Normalize(vmin=_vmin3, vmax=_vmax3, clip=True)
 sm3 = ScalarMappable(cmap=cmap, norm=norm3)
 sm3.set_array(valid_fo)

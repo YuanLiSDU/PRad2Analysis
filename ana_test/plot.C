@@ -364,7 +364,7 @@ void plot_cross_section_all(){
     const char *labels[nE] = {"0.7 GeV", "2.2 GeV", "3.5 GeV"};
     const int colors[nE] = {kBlue + 1, kGreen + 2, kRed + 1};
     const int markers[nE] = {20, 21, 22};
-    const double current_charge[nE] = {3.18, 78., 210.}; // mC
+    const double current_charge[nE] = {3.18, 105.75, 225.}; // mC
     const double run_charge[nE]     = { 0.164753,  0.248315,  4.639600}; // mC, charge used to make rel_err
     double stat_scale[nE] = {1., 1., 1.};
     for (int i = 0; i < nE; i++) {
@@ -479,7 +479,7 @@ void plot_cross_section_all(){
     pad_top->cd();
 
     TH1F *frame_top = new TH1F("frame_cross_section_all",
-                               "e-p Cross Section;Q^{2} (GeV^{2});d#sigma/d#Omega (arbitrary units)",
+                               "e-p Cross Section;Q^{2} (GeV^{2});Arbitrary Units",
                                100, x_min*0.9, x_max*1.1);
     frame_top->SetMinimum(cs_min*0.5);
     frame_top->SetMaximum(cs_max*2.0);
@@ -497,7 +497,7 @@ void plot_cross_section_all(){
     prelim->SetTextSize(0.115);
     prelim->SetTextAngle(24);
     prelim->SetTextColorAlpha(kGray + 1, 0.50);
-    //prelim->Draw();
+    prelim->Draw();
 
     TLegend *leg_top = new TLegend(0.40, 0.68, 0.90, 0.88);
     leg_top->SetBorderSize(0);
@@ -580,7 +580,7 @@ void plot_cross_section_all(){
     TLatex *stat_note1 = new TLatex(0.16, 0.84, "status by June 21st 16:00");
     stat_note1->SetNDC();
     stat_note1->SetTextSize(0.070);
-    stat_note1->Draw();
+    //stat_note1->Draw();
 
     TLatex *stat_note2 = new TLatex(0.16, 0.74, "(scaled by beam charge)");
     stat_note2->SetNDC();
