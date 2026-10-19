@@ -2,7 +2,7 @@
 #include "../PhysicsTools.h"
 
 float Ebeam = 2239.5f; // MeV
-float resolution = 0.035f;
+float resolution = 0.032f;
 
 static TF1 *fitVertexPeak(TH1F *hist, Color_t color)
 {
@@ -28,7 +28,7 @@ static TF1 *fitVertexPeak(TH1F *hist, Color_t color)
 
 void vertex_recon(){
 
-    TFile *file = TFile::Open("../data/recon/2.2GeV/prad_025202_filtered.root");
+    TFile *file = TFile::Open("/home/liyuan/replay_data/recon/all_25326_recon.root");
     TTree *tree = (TTree*)file->Get("recon");
 
     ReconEventData ev;
@@ -88,7 +88,7 @@ void vertex_recon(){
         deltaX_gems->Fill(gem1x - gem2x);
         deltaY_gems->Fill(gem1y - gem2y);
 
-        if (std::abs(gem1x - gem2x) > 5.f || std::abs(gem1y - gem2y) > 5.f) continue;
+        if (std::abs(gem1x - gem2x) > 3.f || std::abs(gem1y - gem2y) > 3.f) continue;
 
         float vx = 0.f, vy = 0.f, vz = 0.f;
 
@@ -172,25 +172,25 @@ void vertex_recon(){
     h_vz->Draw();
     h_vz_0p7deg->Draw("SAME");
     h_vz_1p0deg->Draw("SAME");
-    h_vz_1p6deg->Draw("SAME");
+    //h_vz_1p6deg->Draw("SAME");
     h_vz_2p5deg->Draw("SAME");
-    h_vz_3p5deg->Draw("SAME");
+    //h_vz_3p5deg->Draw("SAME");
 
     TF1 *fit_all  = fitVertexPeak(h_vz, kBlack);
     TF1 *fit_0p7deg = fitVertexPeak(h_vz_0p7deg, kRed);
     TF1 *fit_1p0deg = fitVertexPeak(h_vz_1p0deg, kGreen+2);
-    TF1 *fit_1p6deg = fitVertexPeak(h_vz_1p6deg, kBlue);
+    //TF1 *fit_1p6deg = fitVertexPeak(h_vz_1p6deg, kBlue);
     TF1 *fit_2p5deg = fitVertexPeak(h_vz_2p5deg, kMagenta);
-    TF1 *fit_3p5deg = fitVertexPeak(h_vz_3p5deg, kCyan);
+    //TF1 *fit_3p5deg = fitVertexPeak(h_vz_3p5deg, kCyan);
 
     TLegend *leg_vz = new TLegend(0.60, 0.65, 0.88, 0.88);
     leg_vz->SetBorderSize(0);
-    leg_vz->AddEntry(h_vz, Form("All (#sigma = %.1f mm)", fit_all ? fit_all->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_0p7deg, Form("theta ~ 0.7 deg (#sigma = %.1f mm)", fit_0p7deg ? fit_0p7deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_1p0deg, Form("theta ~ 1.0 deg (#sigma = %.1f mm)", fit_1p0deg ? fit_1p0deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_1p6deg, Form("theta ~ 1.6 deg (#sigma = %.1f mm)", fit_1p6deg ? fit_1p6deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_2p5deg, Form("theta ~ 2.5 deg (#sigma = %.1f mm)", fit_2p5deg ? fit_2p5deg->GetParameter(2) : 0.), "l");
-    leg_vz->AddEntry(h_vz_3p5deg, Form("theta ~ 3.5 deg (#sigma = %.1f mm)", fit_3p5deg ? fit_3p5deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz, Form("All, #sigma = %.1f mm", fit_all ? fit_all->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_0p7deg, Form("0.7 deg, #sigma = %.1f mm", fit_0p7deg ? fit_0p7deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_1p0deg, Form("1.0 deg, #sigma = %.1f mm", fit_1p0deg ? fit_1p0deg->GetParameter(2) : 0.), "l");
+    //leg_vz->AddEntry(h_vz_1p6deg, Form("1.6 deg, #sigma = %.1f mm", fit_1p6deg ? fit_1p6deg->GetParameter(2) : 0.), "l");
+    leg_vz->AddEntry(h_vz_2p5deg, Form("2.5 deg, #sigma = %.1f mm", fit_2p5deg ? fit_2p5deg->GetParameter(2) : 0.), "l");
+    //leg_vz->AddEntry(h_vz_3p5deg, Form("3.5 deg, #sigma = %.1f mm", fit_3p5deg ? fit_3p5deg->GetParameter(2) : 0.), "l");
     leg_vz->Draw();
     c->cd(2); h_dca->Draw();
     c->SaveAs("vertex_recon.png");
@@ -207,7 +207,7 @@ void vertex_recon(){
     TCanvas *c_vx_vy = new TCanvas("c_vx_vy", "Vertex X vs Vertex Y", 1200, 500);
     h_vx_vy->Draw("COLZ");
     c_vx_vy->SaveAs("vx_vs_vy.png");
-
+    /*
     // Compare the two vertex-Z reconstruction methods in each angle range.
     TH1F *h_vz_closest[5] = {
         h_vz_0p7deg, h_vz_1p0deg, h_vz_1p6deg,
@@ -258,4 +258,5 @@ void vertex_recon(){
     TCanvas *c_phi_diff = new TCanvas("c_phi_diff", "Phi Difference", 1200, 500);
     h_phi_diff->Draw();
     c_phi_diff->SaveAs("phi_diff.png");
+    */
 }

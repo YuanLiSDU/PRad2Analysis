@@ -3,7 +3,7 @@
 #include <fstream>
 #include <string>
 
-int example_mod = 565+34*2;  // W module number: change this to switch modules
+int example_mod = 633;  // W module number: change this to switch modules
 float shift_x = 0.87f, shift_y = 1.0f;
 const int blocks = 5; // number of blocks per side for correction map
 
@@ -57,7 +57,7 @@ void energy_plot(){
            mod.name.Data(), mod.x, mod.y, mod.sx, mod.sy);
 
     // ── File 1: prad_024512_recon.root ───────────────────────────────────────
-    TFile *f = TFile::Open("../data/recon/3.5GeV/prad_024917_recon.root");
+    TFile *f = TFile::Open("/home/liyuan/replay_data/recon/all_25326_recon.root");
     TTree *tree = (TTree*)f->Get("recon");
 
     ReconEventData *evp = new ReconEventData();
@@ -142,7 +142,7 @@ void energy_plot(){
                 float yd = (ev.cl_y[j] - mod.y) / mod.sy;
                 mod_E->Fill(ev.cl_energy[j]);
                 if(fabs(xd) < 0.3 && fabs(yd) < 0.3) mod_E_center->Fill(ev.cl_energy[j]);
-                float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
+                float E_expected = ExpectedEnergy(theta_deg, 2239.43f, "ep");
                 if(E_expected > 0 && ev.cl_energy[j] > E_expected - 200.f && ev.cl_energy[j] < E_expected + 200.f){
                     mod_E_ratio->Fill(ev.cl_energy[j] / E_expected);
                     mod_Eexp_xy->Fill(xd, yd, E_expected);
@@ -171,7 +171,7 @@ void energy_plot(){
                 float xd = (gem_hit.x - mod.x) / mod.sx;
                 float yd = (gem_hit.y - mod.y) / mod.sy;
                 float theta_deg = atan(sqrt(mod.x*mod.x + mod.y*mod.y) / gem_hit.z) * 180. / TMath::Pi();
-                float E_expected = ExpectedEnergy(theta_deg, 3488.43f, "ep");
+                float E_expected = ExpectedEnergy(theta_deg, 2239.43f, "ep");
                 int bx_gem = mod_E_xy_gem->GetXaxis()->FindBin(xd) - 1;
                 int by_gem = mod_E_xy_gem->GetYaxis()->FindBin(yd) - 1;
                 if(E_expected > 0 && ev.mHit_E[m] > E_expected - 200.f && ev.mHit_E[m] < E_expected + 200.f){
@@ -237,7 +237,7 @@ void energy_plot(){
     h2->Draw("colz");
 
     // Energy comparison
-    TCanvas *c2 = new TCanvas("c2", Form("Energy comparison for %s", mod.name.Data()), 1200, 800);
+    /*TCanvas *c2 = new TCanvas("c2", Form("Energy comparison for %s", mod.name.Data()), 1200, 800);
     mod_E_center->Scale(mod_E->GetMaximum() / mod_E_center->GetMaximum()); // scale center histogram to match the max of all hits for better visual comparison
     mod_E->SetLineColor(kBlue);
     mod_E->SetLineWidth(2);
@@ -254,7 +254,7 @@ void energy_plot(){
     leg->AddEntry(mod_E, "All hits", "L");
     leg->AddEntry(mod_E_center, Form("center hits (res = %.2f%%)", res * 100), "L");
     leg->Draw();
-
+    */
     // E/E_exp comparison
     TCanvas *c3 = new TCanvas("c3", Form("E/E_exp comparison for %s", mod.name.Data()), 1200, 800);
     mod_E_ratio->SetLineColor(kBlue);
@@ -296,7 +296,7 @@ void energy_plot(){
     mod_E_xy_gem->GetXaxis()->CenterTitle();
     mod_E_xy_gem->GetYaxis()->CenterTitle();
     mod_E_xy_gem->GetZaxis()->CenterTitle();
-    mod_E_xy_gem->Draw("LEGO2Z");  // 3D colored blocks with Z-palette
+    mod_E_xy_gem->Draw("LEGO2");  // 3D colored blocks with Z-palette
     gPad->SetTheta(30.);
     gPad->SetPhi(40.);
     gPad->Update();
